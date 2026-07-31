@@ -22,8 +22,10 @@ import {
   FaCalendarAlt,
   FaExclamationTriangle,
   FaVolumeUp,
+  FaStop,
 } from "react-icons/fa";
 import { getInterview, submitInterview, uploadAudio } from "../api/interviewApi";
+import AudioWaveform from "../components/AudioWaveform";
 import "../styles/InterviewSession.css";
 
 export default function InterviewSession() {
@@ -36,16 +38,19 @@ export default function InterviewSession() {
   const [state, setState] = useState("setup");
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [timer, setTimer] = useState(0);
+  const [recTimer, setRecTimer] = useState(0);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [micEnabled, setMicEnabled] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const recognitionRef = useRef(null);
+  const [uploadStage, setUploadStage] = useState("idle"); // "idle" | "uploading" | "transcribing"
+  const [audioStream, setAudioStream] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const pendingActionRef = useRef(null);
   const [answers, setAnswers] = useState({});
   const [audioAnswers, setAudioAnswers] = useState({});
+
   useEffect(() => {
     const fetchInterview = async () => {
       try {
@@ -86,6 +91,19 @@ export default function InterviewSession() {
     }
     return () => clearInterval(interval);
   }, [state]);
+
+  // Timer for active audio recording
+  useEffect(() => {
+    let interval;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecTimer((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setRecTimer(0);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
 
   useEffect(() => {
     if (
@@ -138,74 +156,16 @@ export default function InterviewSession() {
     activeQuestionIdRef.current = activeQuestionId;
   }, [activeQuestionId]);
 
-  useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    let rec = null;
-
-    if (SpeechRecognition) {
-      rec = new SpeechRecognition();
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.lang = "en-US";
-
-rec.onresult = (event) => {
-  const currentQId = activeQuestionIdRef.current;
-  if (!currentQId) return;
-
-  let finalTranscript = "";
-
-  for (let i = 0; i < event.results.length; i++) {
-    finalTranscript += event.results[i][0].transcript + " ";
-  }
-
-  setAnswers((prev) => ({
-    ...prev,
-    [currentQId]: finalTranscript.trim(),
-  }));
-};
-
-      rec.onerror = (e) => {
-        console.error("Speech Recognition Error:", e);
-        console.log("Error:", e.error);
-        console.log("Message:", e.message);
-
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-          mediaRecorderRef.current.stop();
-        }
-        setIsRecording(false);
-      };
-
-      rec.onend = () => {
-        if (
-          mediaRecorderRef.current &&
-          mediaRecorderRef.current.state === "recording"
-        ) {
-          mediaRecorderRef.current.stop();
-        }
-
-        setIsRecording(false);
-      };
-
-      recognitionRef.current = rec;
-    }
-
-    return () => {
-      if (rec) {
-        rec.stop();
-      }
-    };
-  }, []);
-  //media Recorder
+  // Setup MediaRecorder & AudioStream
   useEffect(() => {
     const setupMediaRecorder = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
         });
+        setAudioStream(stream);
 
         const mediaRecorder = new MediaRecorder(stream);
-
         mediaRecorderRef.current = mediaRecorder;
 
         mediaRecorder.ondataavailable = (event) => {
@@ -214,74 +174,70 @@ rec.onresult = (event) => {
           }
         };
 
-     mediaRecorder.onstop = async () => {
-  const blob = new Blob(audioChunksRef.current, {
-    type: "audio/webm",
-  });
+        mediaRecorder.onstop = async () => {
+          setIsUploading(true);
+          setUploadStage("uploading");
 
-  const formData = new FormData();
+          const blob = new Blob(audioChunksRef.current, {
+            type: "audio/webm",
+          });
 
-  formData.append("audio", blob, "answer.webm");
-  formData.append("interviewId", id);
-  formData.append("questionId", activeQuestionIdRef.current);
+          const formData = new FormData();
+          formData.append("audio", blob, "answer.webm");
+          formData.append("interviewId", id);
+          formData.append("questionId", activeQuestionIdRef.current);
 
-  setIsUploading(true);
+          try {
+            const response = await uploadAudio(formData);
 
-  try {
-    const response = await uploadAudio(formData);
+            // Replace answer transcript in React state with Azure transcript
+            setAnswers((prev) => ({
+              ...prev,
+              [activeQuestionIdRef.current]: response.data.transcript,
+            }));
 
-    // Replace browser transcript with Azure transcript
-    setAnswers((prev) => ({
-      ...prev,
-      [activeQuestionIdRef.current]: response.data.transcript,
-    }));
+            setAudioAnswers((prev) => ({
+              ...prev,
+              [activeQuestionIdRef.current]: blob,
+            }));
 
-    // Store recorded audio locally (optional)
-    setAudioAnswers((prev) => ({
-      ...prev,
-      [activeQuestionIdRef.current]: blob,
-    }));
+            console.log("Azure Response:", response.data);
+            console.log("Azure Transcript:", response.data.transcript);
 
-    console.log("Azure Response:", response.data);
-    console.log("Azure Transcript:", response.data.transcript);
+            // Show transcribing / success message state
+            setUploadStage("transcribing");
 
-    for (const pair of formData.entries()) {
-      console.log(pair[0], pair[1]);
-    }
+            // Auto-hide success card after around 1.5 seconds
+            await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    console.log("Blob:", blob);
-    console.log("Size:", blob.size);
-    console.log("Type:", blob.type);
+            setUploadStage("idle");
+            setIsUploading(false);
 
-    // Execute pending navigation after upload completes
-    if (pendingActionRef.current === "next") {
-      pendingActionRef.current = null;
-
-      setActiveQuestionIndex((prev) => prev + 1);
-
-    } else if (pendingActionRef.current === "prev") {
-      pendingActionRef.current = null;
-
-      setActiveQuestionIndex((prev) => prev - 1);
-
-    } else if (pendingActionRef.current === "finish") {
-      pendingActionRef.current = null;
-
-      await handleFinish();
-    }
-
-  } catch (err) {
-    console.error("Audio upload failed:", err);
-    alert("Failed to upload and transcribe audio. Please try recording again.");
-  } finally {
-    audioChunksRef.current = [];
-    setIsUploading(false);
-  }
-};
-
+            // Execute pending navigation after upload completes
+            if (pendingActionRef.current === "next") {
+              pendingActionRef.current = null;
+              setActiveQuestionIndex((prev) => prev + 1);
+            } else if (pendingActionRef.current === "prev") {
+              pendingActionRef.current = null;
+              setActiveQuestionIndex((prev) => prev - 1);
+            } else if (pendingActionRef.current === "finish") {
+              pendingActionRef.current = null;
+              await handleFinish();
+            }
+          } catch (err) {
+            console.error("Audio upload failed:", err);
+            alert("Failed to upload and transcribe audio. Please try recording again.");
+            setUploadStage("idle");
+            setIsUploading(false);
+          } finally {
+            audioChunksRef.current = [];
+          }
+        };
       } catch (err) {
         console.error("Failed to access microphone:", err);
-        alert("Microphone access was denied or unavailable. Please allow microphone access and try again.");
+        alert(
+          "Microphone access was denied or unavailable. Please allow microphone access and try again."
+        );
       }
     };
 
@@ -295,47 +251,34 @@ rec.onresult = (event) => {
         mediaRecorderRef.current.stop();
       }
     };
-  }, []);
+  }, [id]);
 
-  const toggleRecording = () => {
-    if (!recognitionRef.current) {
-      alert(
-        "Web Speech dictation is not supported in this browser. Please type your answer instead.",
-      );
+  const startRecording = () => {
+    if (!mediaRecorderRef.current) {
+      alert("Microphone stream is unavailable. Please check permissions.");
       return;
     }
-    if (isRecording) {
-      recognitionRef.current.stop();
-
-      if (
-        mediaRecorderRef.current &&
-        mediaRecorderRef.current.state !== "inactive"
-      ) {
-        mediaRecorderRef.current.stop();
+    try {
+      audioChunksRef.current = [];
+      if (mediaRecorderRef.current.state === "inactive") {
+        mediaRecorderRef.current.start();
       }
+      setRecTimer(0);
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Error starting media recorder:", err);
       setIsRecording(false);
-    } else {
-      try {
-        recognitionRef.current.start();
-        audioChunksRef.current = [];
-
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "inactive") {
-          mediaRecorderRef.current.start();
-        }
-        setIsRecording(true);
-      } catch (err) {
-        console.error(err);
-        setIsRecording(false);
-      }
     }
   };
-  const handleAnswerChange = (e) => {
-    if (activeQuestionId) {
-      setAnswers((prev) => ({
-        ...prev,
-        [activeQuestionId]: e.target.value,
-      }));
+
+  const stopRecording = () => {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
+      mediaRecorderRef.current.stop();
     }
+    setIsRecording(false);
   };
 
   const formatTime = (seconds) => {
@@ -343,87 +286,81 @@ rec.onresult = (event) => {
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
-const handleNext = () => {
-  if (isUploading) {
-    alert("Please wait while your answer is being uploaded.");
-    return;
-  }
 
+  const handleNext = () => {
+    if (isUploading) {
+      alert("Please wait while your answer is being uploaded.");
+      return;
+    }
 
-  if (isRecording) {
-    pendingActionRef.current = "next";
-    recognitionRef.current.stop();
-    return;
-  }
+    if (isRecording) {
+      pendingActionRef.current = "next";
+      stopRecording();
+      return;
+    }
 
-  if (activeQuestionIndex < interview.questions.length - 1) {
-    setActiveQuestionIndex((prev) => prev + 1);
-  }
-  
-};
+    if (activeQuestionIndex < interview.questions.length - 1) {
+      setActiveQuestionIndex((prev) => prev + 1);
+    }
+  };
 
-const handlePrev = () => {
-  // Don't allow navigation while uploading
-  if (isUploading) {
-    alert("Please wait while your answer is being uploaded.");
-    return;
-  }
+  const handlePrev = () => {
+    if (isUploading) {
+      alert("Please wait while your answer is being uploaded.");
+      return;
+    }
 
-  // If currently recording, stop first.
-  // Navigation will happen after upload completes.
-  if (isRecording) {
-    pendingActionRef.current = "prev";
-    recognitionRef.current.stop();
-    return;
-  }
+    if (isRecording) {
+      pendingActionRef.current = "prev";
+      stopRecording();
+      return;
+    }
 
-  if (activeQuestionIndex > 0) {
-    setActiveQuestionIndex((prev) => prev - 1);
-  }
-};
+    if (activeQuestionIndex > 0) {
+      setActiveQuestionIndex((prev) => prev - 1);
+    }
+  };
 
   const handleStartInterview = () => {
     setState("active");
   };
 
-const handleFinish = async () => {
-  // Don't submit while an upload is already in progress
-  if (isUploading) {
-    alert("Please wait while your last answer is being uploaded.");
-    return;
-  }
+  const handleFinish = async () => {
+    if (isUploading) {
+      alert("Please wait while your last answer is being uploaded.");
+      return;
+    }
 
-  // If still recording, stop recording first.
-  // The actual submission will happen from mediaRecorder.onstop()
-  if (isRecording) {
-    pendingActionRef.current = "finish";
-    recognitionRef.current.stop();
-    return;
-  }
+    if (isRecording) {
+      pendingActionRef.current = "finish";
+      stopRecording();
+      return;
+    }
 
-  try {
-    setState("submitting");
-
-    const res = await submitInterview(id);
-
-    setInterview(res.data);
-    setState("results");
-  } catch (err) {
-    console.error("Submit Interview Error:", err);
-
-    alert(
-      "Failed to submit and grade your responses. Please try submitting again."
-    );
-
-    setState("active");
-  }
-};
+    try {
+      setState("submitting");
+      const res = await submitInterview(id);
+      setInterview(res.data);
+      setState("results");
+    } catch (err) {
+      console.error("Submit Interview Error:", err);
+      alert(
+        "Failed to submit and grade your responses. Please try submitting again."
+      );
+      setState("active");
+    }
+  };
 
   const getScoreVerdict = (score) => {
     if (score >= 8.5) return "Excellent";
     if (score >= 7.0) return "Good";
     if (score >= 5.0) return "Average";
     return "NeedsImprovement";
+  };
+
+  const getScoreAngle = (score) => {
+    const safeScore = typeof score === "number" ? score : 0;
+    return `${(safeScore / 10) * 360}deg`;
   };
 
   const getVerdictLabel = (verdict) => {
@@ -556,8 +493,8 @@ const handleFinish = async () => {
                     experience.
                   </li>
                   <li>
-                    Click <strong>Dictate Answer</strong> to respond by
-                    speaking, or type directly into the box.
+                    Click <strong>Start Recording</strong> to speak your
+                    response for each question.
                   </li>
                   <li>
                     You can navigate back and forth to refine your answers
@@ -623,6 +560,15 @@ const handleFinish = async () => {
 
   if (state === "active") {
     const currentQuestion = interview.questions[activeQuestionIndex];
+    const isQuestionAnswered = (qId) => {
+      if (!qId) return false;
+      return !!(
+        audioAnswers[qId] ||
+        (answers[qId] !== undefined && answers[qId] !== null && String(answers[qId]).length > 0)
+      );
+    };
+    const hasRecordedAnswer = isQuestionAnswered(currentQuestion?._id);
+
     return (
       <div className="session-container">
         <div className="session-card">
@@ -653,18 +599,16 @@ const handleFinish = async () => {
                 <span className="progress-header">Questions Progress</span>
                 <div className="progress-steps">
                   {interview.questions.map((q, idx) => {
-                    const isAnswered = !!(
-                      answers[q._id] && answers[q._id].trim().length > 0
-                    );
+                    const isAnswered = isQuestionAnswered(q._id);
                     const isActive = idx === activeQuestionIndex;
                     return (
                       <div
                         key={q._id}
                         className={`progress-step-item ${isActive ? "active" : ""} ${isAnswered ? "answered" : ""}`}
                         onClick={() => {
-                          if (isRecording && recognitionRef.current) {
-                            recognitionRef.current.stop();
-                            setIsRecording(false);
+                          if (isUploading) return;
+                          if (isRecording) {
+                            stopRecording();
                           }
                           setActiveQuestionIndex(idx);
                         }}
@@ -725,36 +669,94 @@ const handleFinish = async () => {
                 <h3 className="question-text">{currentQuestion.question}</h3>
               </div>
 
-              <div className="answer-panel">
-                <div className="answer-label-row">
-                  <span className="answer-label">Your Response</span>
-                  <button
-                    className={`dictate-btn ${isRecording ? "recording" : ""}`}
-                    onClick={toggleRecording}
-                  >
-                    <FaMicrophone />
-                    {isRecording
-                      ? "Listening... Click to Save"
-                      : "Dictate Answer"}
-                  </button>
-                </div>
+              {/* Modern Answer Recording Interface */}
+              <div className="answer-panel recording-experience">
+                <div className="recording-card-panel">
+                  {/* Uploading Loading State */}
+                  {isUploading && uploadStage === "uploading" && (
+                    <div className="recording-status-box uploading">
+                      <FaSpinner className="spinner recording-spinner" />
+                      <h3 className="uploading-text">Uploading audio...</h3>
+                    </div>
+                  )}
 
-                <textarea
-                  className="answer-textarea"
-                  value={answers[currentQuestion._id] || ""}
-                  onChange={handleAnswerChange}
-                  placeholder="Type or dictate your answer to this question here..."
-                />
+                  {/* Transcribing Success State */}
+                  {isUploading && uploadStage === "transcribing" && (
+                    <div className="recording-status-box success">
+                      <div className="success-icon-badge">
+                        <FaCheckCircle />
+                      </div>
+                      <h3 className="success-text">✓ Answer saved successfully</h3>
+                      <p className="status-subtext">
+                        Transcribing with Azure Speech...
+                      </p>
+                    </div>
+                  )}
 
-                <div className="answer-meta">
-                  <span>
-                    {
-                      (answers[currentQuestion._id] || "")
-                        .split(/\s+/)
-                        .filter(Boolean).length
-                    }{" "}
-                    words
-                  </span>
+                  {/* Idle State: Question Not Answered Yet */}
+                  {!isRecording && !isUploading && uploadStage === "idle" && !hasRecordedAnswer && (
+                    <div className="recording-status-box idle">
+                      <button
+                        className="start-record-btn"
+                        onClick={startRecording}
+                      >
+                        <span className="mic-emoji">🎤</span> Start Recording
+                      </button>
+                      <p className="recording-hint">
+                        Click to start answering this question.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Answered State: Question Answer Already Uploaded & Saved */}
+                  {!isRecording && !isUploading && uploadStage === "idle" && hasRecordedAnswer && (
+                    <div className="recording-status-box answer-uploaded">
+                      <div className="uploaded-badge-circle">
+                        <FaCheckCircle />
+                      </div>
+                      <h3 className="uploaded-title">✓ Answer Recorded Successfully</h3>
+                      <p className="uploaded-subtext">
+                        Your response for this question has been saved.
+                      </p>
+                      <button
+                        className="rerecord-btn"
+                        onClick={startRecording}
+                      >
+                        <FaMicrophone /> Re-record Answer
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Active Recording State */}
+                  {isRecording && !isUploading && (
+                    <div className="recording-status-box active-recording">
+                      <div className="recording-live-header">
+                        <div className="recording-indicator">
+                          <span className="red-dot" />
+                          <span>Recording...</span>
+                        </div>
+                        <div className="recording-timer">
+                          {formatTime(recTimer)}
+                        </div>
+                      </div>
+
+                      <AudioWaveform
+                        stream={audioStream}
+                        isRecording={isRecording}
+                      />
+
+                      <p className="recording-subtext">
+                        Speak naturally. Click Stop when finished.
+                      </p>
+
+                      <button
+                        className="stop-record-btn"
+                        onClick={stopRecording}
+                      >
+                        <FaStop className="stop-icon" /> Stop Recording
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
