@@ -54,7 +54,7 @@ export async function generateQuestions(role, experience, difficulty, numQuestio
 function buildEvaluationPrompt(role, experience, questionsAndAnswers) {
     return `You are a senior software engineer and technical interviewer.
 
-Your task is to evaluate the candidate's answers.
+Your task is to evaluate the candidate's answers based on their speech-to-text transcripts.
 
 Candidate Details:
 - Job Role: ${role}
@@ -63,54 +63,51 @@ Candidate Details:
 Questions and Raw Speech-to-Text Transcripts:
 ${JSON.stringify(questionsAndAnswers, null, 2)}
 
-Instructions:
+Instructions for Evaluation:
 
-The answers were generated using automatic speech recognition (ASR).
-They may contain transcription mistakes.
+The candidate's responses were transcribed using Automatic Speech Recognition (ASR).
+Transcripts may contain minor speech recognition or phonetic inaccuracies.
 
-For EACH answer:
+For EACH question item in questionsAndAnswers:
+1. Preserve the exact "id" provided for that question. Never modify, omit, or alter the "id".
+2. Return every question exactly once using its original "id".
+3. Correct ONLY obvious speech recognition (ASR) mistakes using the interview question context.
+4. Preserve the candidate's original intended meaning completely.
+5. Do NOT invent information or add technical details the candidate did not mention.
+6. Do NOT improve weak or incomplete answers beyond fixing speech recognition errors.
+7. If something is unclear or you are not confident about a correction, leave the original wording unchanged.
+8. Provide "transcriptConfidence" (integer from 0 to 10) representing your confidence that the corrected transcript accurately reflects the intended spoken words based on the question context and the raw transcript.
+9. Evaluate the corrected answer and score it from 0 to 10.
+10. Provide clear, constructive feedback.
 
-1. Correct ONLY obvious speech recognition mistakes.
-2. Use the interview question as context.
-3. Do NOT invent information.
-4. Do NOT improve weak answers.
-5. Preserve the candidate's original meaning.
-6. If something is unclear, leave it unchanged.
-7. 6. If you are not reasonably confident about a correction, leave the original wording.
+Finally, calculate an overall score (0 to 10) for the candidate's entire performance.
 
-After correcting the transcript:
-
-- Evaluate the answer.
-- Score from 0-10.
-- Give concise feedback.
-- Provide "transcriptConfidence" (0-10), representing your confidence that the corrected transcript accurately reflects the intended spoken words based on the question context and the raw transcript.
-
-Finally return ONLY valid JSON.
+Return ONLY valid JSON matching this exact schema:
 
 {
-  "questions":[
+  "questions": [
     {
-      "question":"...",
-      "rawTranscript":"...",
-      "correctedTranscript":"...",
-      "transcriptConfidence":9,
-      "feedback":"...",
-      "score":8
+      "id": "<questionId>",
+      "question": "...",
+      "rawTranscript": "...",
+      "correctedTranscript": "...",
+      "transcriptConfidence": 9,
+      "feedback": "...",
+      "score": 8
     }
   ],
-  "overallScore":7.8
+  "overallScore": 8.0
 }
 
-Return ONLY JSON.
-Do NOT use markdown.
-Do NOT wrap in \`\`\`.
+Return ONLY raw JSON.
+Do NOT include markdown formatting or \`\`\`json wrappers.
 `;
 }
 
 export async function evaluateAnswers(role, experience, questionsAndAnswers) {
     const prompt = buildEvaluationPrompt(role, experience, questionsAndAnswers);
     const response = await ai.models.generateContent({
-        model: "gemini-3-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
     });
     console.log("Evaluation AI Output:", response.text);

@@ -21,7 +21,14 @@ const startInterview = async (req, res) => {
         additionalSkills
     });
     console.log(interview);
-    const questions = await generateQuestions(jobRole, experienceLevel, interviewType, difficulty, numQuestions, interviewType, additionalSkills);
+    const questions = await generateQuestions(
+      jobRole,
+      experienceLevel,
+      difficulty,
+      numQuestions,
+      interviewType,
+      additionalSkills
+    );
     console.log("Raw generated questions:", questions);
 
     let parsedQuestions = [];
@@ -60,79 +67,101 @@ const getInterviewById = async (req, res) => {
 };
 
 const submitInterview = async (req, res) => {
- try {
-  const interview = await Interview.findById(req.params.id);
-
-  if (!interview) {
-    return res.status(404).json({
-      message: "Interview Not Found!",
-    });
-  }
-
-  // Prepare data for Gemini
-  const questionsToEvaluate = interview.questions.map((q) => ({
-    question: q.question,
-    rawTranscript: q.transcriptRaw || "",
-  }));
-
-  // Call Gemini
-  const evaluationRaw = await evaluateAnswers(
-    interview.jobRole,
-    interview.experienceLevel,
-    questionsToEvaluate
-  );
-
-  let evaluation;
-
   try {
-    evaluation = JSON.parse(evaluationRaw);
-  } catch (parseErr) {
-    console.error("JSON Parse Error:", parseErr);
+    const interview = await Interview.findById(req.params.id);
 
-    return res.status(500).json({
-      message: "Failed to parse AI evaluation.",
-      error: parseErr.message,
-      raw: evaluationRaw,
+    if (!interview) {
+      return res.status(404).json({
+        message: "Interview Not Found!",
+      });
+    }
+
+    // Build array of questions with stable MongoDB _id as id
+    const questionsAndAnswers = interview.questions.map((q) => ({
+      id: q._id.toString(),
+      question: q.question,
+      rawTranscript: q.transcriptRaw || "",
+    }));
+
+    // Single Gemini evaluation request for the entire interview
+    const evaluationRaw = await evaluateAnswers(
+      interview.jobRole,
+      interview.experienceLevel,
+      questionsAndAnswers
+    );
+
+    let evaluation;
+    let cleanJsonText = (evaluationRaw || "").trim();
+
+    if (cleanJsonText.startsWith("```json")) {
+      cleanJsonText = cleanJsonText.slice(7);
+    } else if (cleanJsonText.startsWith("```")) {
+      cleanJsonText = cleanJsonText.slice(3);
+    }
+    if (cleanJsonText.endsWith("```")) {
+      cleanJsonText = cleanJsonText.slice(0, -3);
+    }
+    cleanJsonText = cleanJsonText.trim();
+
+    try {
+      evaluation = JSON.parse(cleanJsonText);
+    } catch (parseErr) {
+      console.error("JSON Parse Error:", parseErr);
+
+      return res.status(500).json({
+        message: "Failed to parse AI evaluation.",
+        error: parseErr.message,
+        raw: evaluationRaw,
+      });
+    }
+
+    // Build lookup Map from Gemini response using question id
+    const evalMap = new Map();
+    if (Array.isArray(evaluation.questions)) {
+      evaluation.questions.forEach((item) => {
+        if (item && item.id !== undefined && item.id !== null) {
+          evalMap.set(String(item.id), item);
+        }
+      });
+    }
+
+    // Save evaluation results back into interview document using ID-based lookup
+    interview.questions.forEach((q, index) => {
+      const qIdStr = q._id.toString();
+      const evalItem = evalMap.get(qIdStr) || evaluation.questions?.[index];
+
+      if (!evalItem) return;
+
+      const correctedText = evalItem.correctedTranscript || q.transcriptRaw || "";
+      q.transcriptCorrected = correctedText;
+      q.answer = correctedText;
+
+      q.feedback = evalItem.feedback || "No feedback generated.";
+
+      q.score =
+        typeof evalItem.score === "number"
+          ? evalItem.score
+          : 0;
+    });
+
+    interview.overallScore =
+      typeof evaluation.overallScore === "number"
+        ? evaluation.overallScore
+        : 0;
+
+    interview.status = "Completed";
+
+    await interview.save();
+
+    res.status(200).json(interview);
+  } catch (err) {
+    console.error("submitInterview Error:", err);
+
+    res.status(500).json({
+      message: err.message,
     });
   }
-
-  // Update interview questions
-  interview.questions.forEach((q, index) => {
-    const evalItem = evaluation.questions?.[index];
-
-    if (!evalItem) return;
-
-    q.transcriptCorrected =
-      evalItem.correctedTranscript || q.transcriptRaw;
-
-    q.feedback =
-      evalItem.feedback || "No feedback generated.";
-
-    q.score =
-      typeof evalItem.score === "number"
-        ? evalItem.score
-        : 0;
-  });
-
-  interview.overallScore =
-    typeof evaluation.overallScore === "number"
-      ? evaluation.overallScore
-      : 0;
-
-  interview.status = "Completed";
-
-  await interview.save();
-
-  res.status(200).json(interview);
-
-} catch (err) {
-  console.error("submitInterview Error:", err);
-
-  res.status(500).json({
-    message: err.message,
-  });
-}
-}
+};
 
 const getUserInterviews = async (req, res) => {
   try {
@@ -157,14 +186,14 @@ const uploadAudio = async (req, res) => {
       result.secure_url,
       interviewId,
       questionId
-    )
+    );
 
     const interview = await Interview.findById(interviewId);
 
     if(!interview) {
       return res.status(404).json({
         message: "Interview not found",
-      })
+      });
     }
     const question = interview.questions.id(questionId);
 
@@ -179,10 +208,12 @@ const uploadAudio = async (req, res) => {
       duration: result.duration,
       format: result.format,
     };
+    question.transcriptRaw = transcript;
+
     await interview.save();
-     res.status(200).json({
+    res.status(200).json({
       success: true,
-      "transcript": transcript,
+      transcript: transcript,
     });
   }  catch(err){
     console.error(err);
