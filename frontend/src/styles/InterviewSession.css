@@ -661,6 +661,188 @@
   padding: 2rem 1rem;
 }
 
+/* ----------------------------------
+   Submission Loading & Step Checklist
+   ---------------------------------- */
+
+.submission-loading-card {
+  max-width: 580px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 3.5rem 2.5rem;
+  margin: 0 auto;
+}
+
+.submission-loading-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.eval-pulse-ring {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eff6ff;
+  border-radius: 50%;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15);
+}
+
+.eval-spinner {
+  font-size: 2.2rem;
+  color: #2563eb;
+}
+
+.loading-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
+}
+
+.loading-subtitle {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 0;
+  max-width: 440px;
+  line-height: 1.5;
+}
+
+.submission-steps-container {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem 1.5rem;
+  border-radius: 14px;
+  text-align: left;
+}
+
+.submission-step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.submission-step-item.completed {
+  background: #ffffff;
+}
+
+.submission-step-item.active {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.submission-step-item.upcoming {
+  opacity: 0.5;
+}
+
+.step-icon-col {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-status-icon.completed {
+  color: #10b981;
+  font-size: 1.15rem;
+}
+
+.step-status-icon.active {
+  color: #2563eb;
+  font-size: 1.1rem;
+}
+
+.step-spinner {
+  animation: spin 1s linear infinite;
+}
+
+.upcoming-dot {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #94a3b8;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.step-title-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.submission-step-item.active .step-title-text {
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+/* Error Card Styles */
+.error-card {
+  max-width: 540px;
+  margin: 0 auto;
+  text-align: center;
+  align-items: center;
+}
+
+.error-icon-box {
+  width: 68px;
+  height: 68px;
+  background: #fee2e2;
+  color: #ef4444;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  margin-bottom: 1.25rem;
+}
+
+.error-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
+}
+
+.error-subtitle {
+  font-size: 1rem;
+  color: #64748b;
+  margin: 0 0 1.25rem 0;
+}
+
+.error-detail-text {
+  font-size: 0.85rem;
+  color: #ef4444;
+  background: #fef2f2;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #fca5a5;
+  margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+.error-actions {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  justify-content: center;
+}
+
 .recording-spinner {
   font-size: 2.2rem;
   color: #2563eb;

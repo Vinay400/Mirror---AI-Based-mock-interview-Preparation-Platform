@@ -42,7 +42,16 @@ export default function InterviewSession() {
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [micEnabled, setMicEnabled] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [submitStep, setSubmitStep] = useState(0);
+  const [submitError, setSubmitError] = useState(null);
+
+  const SUBMIT_STEPS = [
+    { id: "saving", label: "Saving interview" },
+    { id: "transcripts", label: "Processing transcripts" },
+    { id: "evaluating", label: "Evaluating technical answers" },
+    { id: "feedback", label: "Generating personalized feedback" },
+    { id: "results", label: "Preparing your results" },
+  ];
   const [uploadStage, setUploadStage] = useState("idle"); // "idle" | "uploading" | "transcribing"
   const [audioStream, setAudioStream] = useState(null);
   const mediaRecorderRef = useRef(null);
@@ -337,17 +346,36 @@ export default function InterviewSession() {
       return;
     }
 
+    if (state === "submitting") return;
+
     try {
       setState("submitting");
+      setSubmitError(null);
+      setSubmitStep(0);
+
+      // Animated progress checklist interval while evaluation is in progress
+      const stepInterval = setInterval(() => {
+        setSubmitStep((prev) => {
+          if (prev < 3) return prev + 1;
+          return prev;
+        });
+      }, 1800);
+
       const res = await submitInterview(id);
+
+      clearInterval(stepInterval);
+      setSubmitStep(4);
+
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
       setInterview(res.data);
       setState("results");
     } catch (err) {
       console.error("Submit Interview Error:", err);
-      alert(
-        "Failed to submit and grade your responses. Please try submitting again."
+      setSubmitError(
+        err.response?.data?.message || err.message || "Failed to complete evaluation."
       );
-      setState("active");
+      setState("submit-error");
     }
   };
 
@@ -606,7 +634,7 @@ export default function InterviewSession() {
                         key={q._id}
                         className={`progress-step-item ${isActive ? "active" : ""} ${isAnswered ? "answered" : ""}`}
                         onClick={() => {
-                          if (isUploading) return;
+                          if (isUploading || state === "submitting") return;
                           if (isRecording) {
                             stopRecording();
                           }
@@ -764,18 +792,34 @@ export default function InterviewSession() {
                 <button
                   className="nav-btn"
                   onClick={handlePrev}
-                  disabled={activeQuestionIndex === 0}
+                  disabled={activeQuestionIndex === 0 || state === "submitting" || isUploading}
                 >
                   <FaArrowLeft /> Previous
                 </button>
 
                 {activeQuestionIndex < interview.questions.length - 1 ? (
-                  <button className="nav-btn primary" onClick={handleNext}>
+                  <button
+                    className="nav-btn primary"
+                    onClick={handleNext}
+                    disabled={state === "submitting" || isUploading}
+                  >
                     Next Question <FaArrowRight />
                   </button>
                 ) : (
-                  <button className="nav-btn finish" onClick={handleFinish}>
-                    Finish & Submit <FaCheckCircle />
+                  <button
+                    className="nav-btn finish"
+                    onClick={handleFinish}
+                    disabled={state === "submitting" || isUploading}
+                  >
+                    {state === "submitting" ? (
+                      <>
+                        <FaSpinner className="step-spinner" /> Submitting...
+                      </>
+                    ) : (
+                      <>
+                        Finish & Submit <FaCheckCircle />
+                      </>
+                    )}
                   </button>
                 )}
               </div>
@@ -789,16 +833,83 @@ export default function InterviewSession() {
   if (state === "submitting") {
     return (
       <div className="session-container">
-        <div className="session-card evaluation-animation">
-          <div className="eval-ring-spinner" />
-          <h2>AI Evaluator is scoring your interview...</h2>
-          <p className="eval-status-msg">
-            Analyzing accuracy, experience compatibility, and technical
-            phrasing.
-          </p>
-          <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
-            This might take up to a minute. Please don't close this tab.
-          </span>
+        <div className="session-card submission-loading-card">
+          <div className="submission-loading-header">
+            <div className="eval-pulse-ring">
+              <FaSpinner className="spinner eval-spinner" />
+            </div>
+            <h2 className="loading-title">Analyzing Your Interview</h2>
+            <p className="loading-subtitle">
+              Please wait while we analyze your responses and generate personalized feedback.
+            </p>
+          </div>
+
+          <div className="submission-steps-container">
+            {SUBMIT_STEPS.map((step, idx) => {
+              const isCompleted = idx < submitStep;
+              const isActive = idx === submitStep;
+              const isUpcoming = idx > submitStep;
+
+              return (
+                <div
+                  key={step.id}
+                  className={`submission-step-item ${
+                    isCompleted ? "completed" : ""
+                  } ${isActive ? "active" : ""} ${isUpcoming ? "upcoming" : ""}`}
+                >
+                  <div className="step-icon-col">
+                    {isCompleted && (
+                      <span className="step-status-icon completed">
+                        <FaCheckCircle />
+                      </span>
+                    )}
+                    {isActive && (
+                      <span className="step-status-icon active">
+                        <FaSpinner className="step-spinner" />
+                      </span>
+                    )}
+                    {isUpcoming && (
+                      <span className="step-status-icon upcoming">
+                        <span className="upcoming-dot" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="step-text-col">
+                    <span className="step-title-text">{step.label}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (state === "submit-error") {
+    return (
+      <div className="session-container">
+        <div className="session-card loading-wrapper error-card">
+          <div className="error-icon-box">
+            <FaExclamationTriangle className="error-icon" />
+          </div>
+          <h2 className="error-title">
+            We couldn't complete your interview evaluation.
+          </h2>
+          <p className="error-subtitle">Please try submitting again.</p>
+          {submitError && <p className="error-detail-text">{submitError}</p>}
+
+          <div className="error-actions">
+            <button
+              className="nav-btn secondary"
+              onClick={() => setState("active")}
+            >
+              Cancel & Return
+            </button>
+            <button className="nav-btn primary" onClick={handleFinish}>
+              <FaPlayCircle /> Retry Submission
+            </button>
+          </div>
         </div>
       </div>
     );
