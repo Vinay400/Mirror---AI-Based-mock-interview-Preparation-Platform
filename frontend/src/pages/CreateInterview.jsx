@@ -6,12 +6,15 @@ import {
   FaListOl, 
   FaUserTie, 
   FaTags, 
-  FaRocket 
+  FaRocket,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import '../styles/CreateInterview.css';
 import { useNavigate } from 'react-router-dom';
-import {startInterview} from '../api/interviewApi';
-import { setToken, getToken } from '../utils/auth';
+import { startInterview } from '../api/interviewApi';
+import { getToken } from '../utils/auth';
+import { SkeletonFormOverlay } from '../components/Skeletons';
+
 export default function CreateInterview() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -24,6 +27,8 @@ export default function CreateInterview() {
   });
 
   const [errors, setErrors] = useState({});
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [apiError, setApiError] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,25 +61,36 @@ export default function CreateInterview() {
   const handleSubmit = async(e) => {
     e.preventDefault();
     if (validate()) {
-      console.log('Form Submitted Successfully:', formData);
       handleStart();
     }
   };
-  const handleStart = async()=>{
+
+  const handleStart = async () => {
     const token = getToken();
     if (!token) {
       alert("You are not logged in! Redirecting to login page...");
       navigate("/login");
       return;
     }
-    try{
-    const response = await startInterview(formData);
-    console.log("Interview created successfully!", response.data);
-    alert("Interview generated successfully! Redirecting...");
-    navigate(`/interview/${response.data._id}`);
-    } catch(err){
-      console.log(err);
-    }}
+    try {
+      setIsGenerating(true);
+      setApiError(null);
+      const response = await startInterview(formData);
+      console.log("Interview created successfully!", response.data);
+      navigate(`/interview/${response.data._id}`);
+    } catch (err) {
+      console.error("Failed to generate interview:", err);
+      setApiError(
+        err.response?.data?.message || err.message || "Failed to generate interview questions. Please try again."
+      );
+      setIsGenerating(false);
+    }
+  };
+
+  if (isGenerating) {
+    return <SkeletonFormOverlay />;
+  }
+
   return (
     <div className="interview-container">
       <div className="interview-card">
@@ -82,6 +98,13 @@ export default function CreateInterview() {
           <h1>Create New AI Mock Interview</h1>
           <p>Configure your interview and let AI generate personalized interview questions.</p>
         </header>
+
+        {apiError && (
+          <div className="error-detail-text" style={{ marginBottom: "1.5rem" }}>
+            <FaExclamationTriangle style={{ marginRight: "0.5rem" }} />
+            {apiError}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="interview-form" noValidate>
           {/* Job Role */}

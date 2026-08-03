@@ -23,9 +23,27 @@ import {
   FaExclamationTriangle,
   FaVolumeUp,
   FaStop,
+  FaBrain,
+  FaCode,
+  FaComments,
+  FaLightbulb,
+  FaBookOpen,
+  FaAward,
+  FaChevronDown,
+  FaChevronUp,
+  FaClock,
+  FaTachometerAlt,
+  FaLanguage,
+  FaSpellCheck,
 } from "react-icons/fa";
 import { getInterview, submitInterview, uploadAudio } from "../api/interviewApi";
 import AudioWaveform from "../components/AudioWaveform";
+import {
+  SkeletonInterviewScreen,
+  SkeletonRecordingPanel,
+  SkeletonTranscriptBlock,
+  SkeletonResultsDashboard,
+} from "../components/Skeletons";
 import "../styles/InterviewSession.css";
 
 export default function InterviewSession() {
@@ -49,9 +67,10 @@ export default function InterviewSession() {
   const SUBMIT_STEPS = [
     { id: "saving", label: "Saving interview" },
     { id: "transcripts", label: "Processing transcripts" },
-    { id: "evaluating", label: "Evaluating technical answers" },
-    { id: "feedback", label: "Generating personalized feedback" },
-    { id: "results", label: "Preparing your results" },
+    { id: "evaluating", label: "Evaluating technical knowledge" },
+    { id: "communication", label: "Analyzing communication" },
+    { id: "speaking", label: "Computing speaking analytics" },
+    { id: "report", label: "Preparing your report" },
   ];
   const [uploadStage, setUploadStage] = useState("idle"); // "idle" | "uploading" | "transcribing"
   const [audioStream, setAudioStream] = useState(null);
@@ -357,15 +376,15 @@ export default function InterviewSession() {
       // Animated progress checklist interval while evaluation is in progress
       const stepInterval = setInterval(() => {
         setSubmitStep((prev) => {
-          if (prev < 3) return prev + 1;
+          if (prev < 4) return prev + 1;
           return prev;
         });
-      }, 1800);
+      }, 1500);
 
       const res = await submitInterview(id);
 
       clearInterval(stepInterval);
-      setSubmitStep(4);
+      setSubmitStep(5);
 
       await new Promise((resolve) => setTimeout(resolve, 600));
 
@@ -380,43 +399,55 @@ export default function InterviewSession() {
     }
   };
 
-  const getScoreVerdict = (score) => {
-    if (score >= 8.5) return "Excellent";
-    if (score >= 7.0) return "Good";
-    if (score >= 5.0) return "Average";
-    return "NeedsImprovement";
+  const normalizeScore100 = (score) => {
+    if (typeof score !== "number") return 0;
+    if (score > 0 && score <= 10) return Math.round(score * 10);
+    return Math.round(score);
   };
 
-  const getScoreAngle = (score) => {
-    const safeScore = typeof score === "number" ? score : 0;
-    return `${(safeScore / 10) * 360}deg`;
-  };
-
-  const getVerdictLabel = (verdict) => {
-    switch (verdict) {
-      case "Excellent":
-        return "Excellent";
-      case "Good":
-        return "Good";
-      case "Average":
-        return "Average";
-      case "NeedsImprovement":
-        return "Needs Improvement";
+  const getRecommendationBadgeClass = (rec) => {
+    switch (rec) {
+      case "Strong Hire":
+        return "recommendation-strong-hire";
+      case "Hire":
+        return "recommendation-hire";
+      case "Borderline":
+        return "recommendation-borderline";
+      case "Needs Improvement":
       default:
-        return "Needs Improvement";
+        return "recommendation-needs-improvement";
     }
   };
 
+  const [expandedQuestions, setExpandedQuestions] = useState({});
+
+  const toggleQuestionExpand = (qId) => {
+    setExpandedQuestions((prev) => ({
+      ...prev,
+      [qId]: prev[qId] === undefined ? false : !prev[qId],
+    }));
+  };
+
+  const formatSeconds = (sec) => {
+    const s = Math.max(0, Math.round(Number(sec) || 0));
+    const mins = Math.floor(s / 60);
+    const remainingSecs = s % 60;
+    if (mins > 0) {
+      return `${mins}m ${remainingSecs}s`;
+    }
+    return `${remainingSecs}s`;
+  };
+
+  const getScoreVerdict = (score) => {
+    const s = normalizeScore100(score);
+    if (s >= 85) return "Excellent";
+    if (s >= 70) return "Good";
+    if (s >= 50) return "Average";
+    return "NeedsImprovement";
+  };
+
   if (loading) {
-    return (
-      <div className="session-container">
-        <div className="session-card loading-wrapper">
-          <FaSpinner className="spinner" />
-          <h2>Preparing Interview Session...</h2>
-          <p>Configuring simulated workspace and fetching details.</p>
-        </div>
-      </div>
-    );
+    return <SkeletonInterviewScreen />;
   }
 
   if (error || !interview) {
@@ -703,23 +734,12 @@ export default function InterviewSession() {
                 <div className="recording-card-panel">
                   {/* Uploading Loading State */}
                   {isUploading && uploadStage === "uploading" && (
-                    <div className="recording-status-box uploading">
-                      <FaSpinner className="spinner recording-spinner" />
-                      <h3 className="uploading-text">Uploading audio...</h3>
-                    </div>
+                    <SkeletonRecordingPanel message="Uploading your response..." />
                   )}
 
-                  {/* Transcribing Success State */}
+                  {/* Azure Speech Transcribing State */}
                   {isUploading && uploadStage === "transcribing" && (
-                    <div className="recording-status-box success">
-                      <div className="success-icon-badge">
-                        <FaCheckCircle />
-                      </div>
-                      <h3 className="success-text">✓ Answer saved successfully</h3>
-                      <p className="status-subtext">
-                        Transcribing with Azure Speech...
-                      </p>
-                    </div>
+                    <SkeletonTranscriptBlock message="Converting speech to text..." />
                   )}
 
                   {/* Idle State: Question Not Answered Yet */}
@@ -917,36 +937,69 @@ export default function InterviewSession() {
   }
 
   if (state === "results") {
-    const verdict = getScoreVerdict(interview.overallScore);
-    const scoreAngle = getScoreAngle(interview.overallScore);
+    const overall100 = normalizeScore100(interview.overallScore);
+    const tech100 = normalizeScore100(
+      interview.technicalScore !== undefined ? interview.technicalScore : interview.overallScore
+    );
+    const prob100 = normalizeScore100(
+      interview.problemSolvingScore !== undefined ? interview.problemSolvingScore : interview.overallScore
+    );
+
+    const commData = interview.communication || {};
+    const commGrammar = normalizeScore100(commData.grammar || 80);
+    const commClarity = normalizeScore100(commData.clarity || 80);
+    const commStructure = normalizeScore100(commData.structure || 80);
+    const commCompleteness = normalizeScore100(commData.completeness || 80);
+    const commVocabulary = normalizeScore100(commData.vocabulary || 80);
+    const commSummary = commData.summary || "Candidate communicated technical concepts with clarity.";
+
+    const speakingData = interview.speakingAnalytics || {};
+    const totalSpeakingTime = speakingData.totalSpeakingTime || 0;
+    const totalWordCount = speakingData.totalWordCount || 0;
+    const avgWpm = speakingData.averageWordsPerMinute || 0;
+    const overallPace = speakingData.overallPace || "Good";
+
+    const recommendationText =
+      interview.recommendation ||
+      (overall100 >= 85
+        ? "Strong Hire"
+        : overall100 >= 70
+        ? "Hire"
+        : overall100 >= 50
+        ? "Borderline"
+        : "Needs Improvement");
+
+    const recBadgeClass = getRecommendationBadgeClass(recommendationText);
 
     return (
       <div className="session-container">
         <div className="session-card results-layout">
+          {/* HERO SUMMARY */}
           <div className="results-header-summary">
             <div className="results-title">
-              <h1>Interview Performance Review</h1>
-              <p>Detailed breakdown and scores computed by Gemini AI.</p>
-            </div>
-
-            <div className="score-summary-box">
-              <div
-                className="score-gauge-ring"
-                style={{ "--score-angle": scoreAngle }}
-              >
-                <div className="score-gauge-inner">
-                  <span className="score-num">
-                    {interview.overallScore.toFixed(1)}
-                  </span>
-                  <span className="score-max">/ 10</span>
-                </div>
-              </div>
-              <div className="score-verdict">
-                <span className="score-label">Evaluation Verdict</span>
-                <span className={`score-text-val ${verdict}`}>
-                  {getVerdictLabel(verdict)}
+              <div className="title-with-badge">
+                <h1>Interview Performance Dashboard</h1>
+                <span className={`recommendation-badge ${recBadgeClass}`}>
+                  <FaAward className="badge-icon" /> {recommendationText}
                 </span>
               </div>
+              <p>
+                Comprehensive report evaluated for {interview.jobRole} (
+                {interview.experienceLevel} level).
+              </p>
+            </div>
+          </div>
+
+          <div className="hero-overall-card">
+            <div className="hero-score-ring">
+              <span className="hero-score-num">{overall100}</span>
+              <span className="hero-score-max">/ 100</span>
+            </div>
+            <div className="hero-summary-text">
+              <h3>
+                <FaBrain /> Executive AI Summary
+              </h3>
+              <p>{interview.summary || "Comprehensive evaluation completed."}</p>
             </div>
           </div>
 
@@ -990,58 +1043,363 @@ export default function InterviewSession() {
             </div>
           </div>
 
+          {/* SECTION 1 — TECHNICAL EVALUATION */}
+          <div className="report-section-card technical-section">
+            <div className="section-header">
+              <h2>
+                <FaCode className="section-icon" /> SECTION 1 — Technical Evaluation
+              </h2>
+              <span className="section-badge">Gemini AI</span>
+            </div>
+
+            <div className="analytics-metrics-grid">
+              <div className="metric-card technical">
+                <div className="metric-header">
+                  <span className="metric-title">Technical Knowledge</span>
+                  <FaCode className="metric-icon" />
+                </div>
+                <div className="metric-value-row">
+                  <span className="metric-number">{tech100}</span>
+                  <span className="metric-max">/ 100</span>
+                </div>
+                <div className="metric-bar-bg">
+                  <div
+                    className="metric-bar-fill technical"
+                    style={{ width: `${tech100}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="metric-card problem-solving">
+                <div className="metric-header">
+                  <span className="metric-title">Problem Solving</span>
+                  <FaLightbulb className="metric-icon" />
+                </div>
+                <div className="metric-value-row">
+                  <span className="metric-number">{prob100}</span>
+                  <span className="metric-max">/ 100</span>
+                </div>
+                <div className="metric-bar-bg">
+                  <div
+                    className="metric-bar-fill problem-solving"
+                    style={{ width: `${prob100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="insights-grid">
+              {interview.strengths && interview.strengths.length > 0 && (
+                <div className="insight-card strengths">
+                  <h3>
+                    <FaCheckCircle className="insight-icon strength-color" /> Key Strengths
+                  </h3>
+                  <ul className="insight-list">
+                    {interview.strengths.map((strength, i) => (
+                      <li key={i}>{strength}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {interview.improvementAreas && interview.improvementAreas.length > 0 && (
+                <div className="insight-card improvements">
+                  <h3>
+                    <FaExclamationTriangle className="insight-icon warning-color" /> Actionable Improvements
+                  </h3>
+                  <ul className="insight-list">
+                    {interview.improvementAreas.map((area, i) => (
+                      <li key={i}>{area}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {interview.recommendedTopics && interview.recommendedTopics.length > 0 && (
+              <div className="topics-section">
+                <h3>
+                  <FaBookOpen className="topics-icon" /> Recommended Study Topics
+                </h3>
+                <div className="topics-chips-row">
+                  {interview.recommendedTopics.map((topic, i) => (
+                    <span key={i} className="topic-chip">
+                      <FaTags className="chip-icon" /> {topic}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 2 — LANGUAGE & COMMUNICATION EVALUATION */}
+          <div className="report-section-card communication-section">
+            <div className="section-header">
+              <h2>
+                <FaLanguage className="section-icon" /> SECTION 2 — Language & Communication Evaluation
+              </h2>
+              <span className="section-badge">Transcript Analysis</span>
+            </div>
+
+            <div className="comm-scores-grid">
+              <div className="comm-metric-item">
+                <div className="comm-metric-header">
+                  <span>Grammar Accuracy</span>
+                  <span className="comm-val">{commGrammar}/100</span>
+                </div>
+                <div className="metric-bar-bg">
+                  <div
+                    className="metric-bar-fill communication"
+                    style={{ width: `${commGrammar}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="comm-metric-item">
+                <div className="comm-metric-header">
+                  <span>Clarity & Expression</span>
+                  <span className="comm-val">{commClarity}/100</span>
+                </div>
+                <div className="metric-bar-bg">
+                  <div
+                    className="metric-bar-fill communication"
+                    style={{ width: `${commClarity}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="comm-metric-item">
+                <div className="comm-metric-header">
+                  <span>Explanation Structure</span>
+                  <span className="comm-val">{commStructure}/100</span>
+                </div>
+                <div className="metric-bar-bg">
+                  <div
+                    className="metric-bar-fill communication"
+                    style={{ width: `${commStructure}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="comm-metric-item">
+                <div className="comm-metric-header">
+                  <span>Completeness</span>
+                  <span className="comm-val">{commCompleteness}/100</span>
+                </div>
+                <div className="metric-bar-bg">
+                  <div
+                    className="metric-bar-fill communication"
+                    style={{ width: `${commCompleteness}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="comm-metric-item full-width">
+                <div className="comm-metric-header">
+                  <span>Vocabulary Usage</span>
+                  <span className="comm-val">{commVocabulary}/100</span>
+                </div>
+                <div className="metric-bar-bg">
+                  <div
+                    className="metric-bar-fill communication"
+                    style={{ width: `${commVocabulary}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {commSummary && (
+              <div className="comm-summary-box">
+                <h4>
+                  <FaSpellCheck /> Communication Summary
+                </h4>
+                <p>{commSummary}</p>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 3 — SPEAKING ANALYTICS (COMPUTED METRICS) */}
+          <div className="report-section-card analytics-section">
+            <div className="section-header">
+              <h2>
+                <FaTachometerAlt className="section-icon" /> SECTION 3 — Speaking Analytics
+              </h2>
+              <span className="section-badge computed">Objective Audio Metrics</span>
+            </div>
+
+            <div className="speaking-stats-grid">
+              <div className="stat-card">
+                <FaClock className="stat-icon" />
+                <div className="stat-info">
+                  <span className="stat-label">Total Speaking Time</span>
+                  <span className="stat-value">{formatSeconds(totalSpeakingTime)}</span>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <FaComments className="stat-icon" />
+                <div className="stat-info">
+                  <span className="stat-label">Total Word Count</span>
+                  <span className="stat-value">{totalWordCount} words</span>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <FaTachometerAlt className="stat-icon" />
+                <div className="stat-info">
+                  <span className="stat-label">Average WPM</span>
+                  <span className="stat-value">{avgWpm} WPM</span>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <FaMicrophone className="stat-icon" />
+                <div className="stat-info">
+                  <span className="stat-label">Speaking Pace</span>
+                  <span className={`pace-badge ${overallPace.toLowerCase()}`}>{overallPace} Pace</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* QUESTION-BY-QUESTION REVIEW */}
           <div className="qna-feedback-section">
-            <h2>Detailed Question Feedback</h2>
+            <h2>Question-by-Question Detailed Review</h2>
 
             <div className="qna-feedback-list">
               {interview.questions.map((q, idx) => {
-                const questionVerdict = getScoreVerdict(q.score);
+                const qIdKey = q._id || idx;
+                const isCollapsed = expandedQuestions[qIdKey] === true;
+                const qScore100 = normalizeScore100(q.score);
+                const questionVerdict = getScoreVerdict(qScore100);
                 const scoreClass =
                   questionVerdict === "Excellent"
                     ? "excellent-score"
                     : questionVerdict === "Good"
-                      ? "good-score"
-                      : questionVerdict === "Average"
-                        ? "average-score"
-                        : "poor-score";
+                    ? "good-score"
+                    : questionVerdict === "Average"
+                    ? "average-score"
+                    : "poor-score";
+
+                const qComm = q.communication || {};
+                const qSpeaking = q.speakingAnalytics || {};
 
                 return (
                   <div
-                    key={q._id}
+                    key={qIdKey}
                     className={`qna-feedback-item ${scoreClass}`}
                   >
-                    <div className="qna-header-row">
-                      <h4 className="qna-question-title">
-                        {idx + 1}. {q.question}
-                      </h4>
-                      <span className="qna-score-badge">
-                        <FaTrophy /> Score: {q.score} / 10
-                      </span>
-                    </div>
-
-                    <div className="qna-content-box">
-                      <div className="qna-block answer">
-                        <span className="block-title">Your Answer</span>
-                        {q.answer?.trim() ? (
-                          <p className="block-text">{q.answer}</p>
-                        ) : (
-                          <p className="block-text empty-ans">
-                            No answer was provided for this question.
-                          </p>
+                    <div
+                      className="qna-header-row clickable"
+                      onClick={() => toggleQuestionExpand(qIdKey)}
+                    >
+                      <div className="qna-title-group">
+                        <span className="qna-num">Q{idx + 1}</span>
+                        {q.topic && (
+                          <span className="qna-topic-badge">{q.topic}</span>
                         )}
+                        <h4 className="qna-question-title">{q.question}</h4>
                       </div>
 
-                      <div className="qna-block feedback">
-                        <span className="block-title">
-                          AI Feedback & Evaluation
+                      <div className="qna-header-right">
+                        <span className="qna-score-badge">
+                          <FaTrophy /> {qScore100} / 100
                         </span>
-                        <div className="block-text">
-                          <ReactMarkdown>
-                            {q.feedback || "Evaluating feedback..."}
-                          </ReactMarkdown>
+                        <button className="expand-toggle-btn">
+                          {isCollapsed ? <FaChevronUp /> : <FaChevronDown />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {!isCollapsed && (
+                      <div className="qna-content-box">
+                        {/* Transcripts */}
+                        <div className="qna-block answer">
+                          <div className="block-title-row">
+                            <span className="block-title">Candidate Response</span>
+                            {q.transcriptConfidence !== undefined &&
+                              q.transcriptConfidence !== null && (
+                                <span className="confidence-badge">
+                                  ASR Confidence: {q.transcriptConfidence}/10
+                                </span>
+                              )}
+                          </div>
+                          {q.transcriptCorrected?.trim() ? (
+                            <p className="block-text">{q.transcriptCorrected}</p>
+                          ) : q.answer?.trim() ? (
+                            <p className="block-text">{q.answer}</p>
+                          ) : q.transcriptRaw?.trim() ? (
+                            <p className="block-text">{q.transcriptRaw}</p>
+                          ) : (
+                            <p className="block-text empty-ans">
+                              No answer provided.
+                            </p>
+                          )}
+                          {q.transcriptRaw &&
+                            q.transcriptCorrected &&
+                            q.transcriptRaw !== q.transcriptCorrected && (
+                              <div className="raw-vs-corrected">
+                                <span className="raw-label">Raw Azure Transcript:</span>{" "}
+                                {q.transcriptRaw}
+                              </div>
+                            )}
+                        </div>
+
+                        {/* Technical Feedback */}
+                        <div className="qna-block feedback">
+                          <span className="block-title">Technical Feedback</span>
+                          <div className="block-text">
+                            <ReactMarkdown>
+                              {q.feedback || "Evaluating feedback..."}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+
+                        {/* Question Communication Breakdown */}
+                        <div className="qna-block comm-breakdown-block">
+                          <span className="block-title">Language & Communication Breakdown</span>
+                          <div className="mini-comm-row">
+                            <span className="mini-comm-chip">Grammar: {normalizeScore100(qComm.grammar || 80)}/100</span>
+                            <span className="mini-comm-chip">Clarity: {normalizeScore100(qComm.clarity || 80)}/100</span>
+                            <span className="mini-comm-chip">Structure: {normalizeScore100(qComm.structure || 80)}/100</span>
+                            <span className="mini-comm-chip">Completeness: {normalizeScore100(qComm.completeness || 80)}/100</span>
+                            <span className="mini-comm-chip">Vocabulary: {normalizeScore100(qComm.vocabulary || 80)}/100</span>
+                          </div>
+                        </div>
+
+                        {/* Model / Ideal Answer */}
+                        {q.idealAnswer && (
+                          <div className="qna-block ideal-answer">
+                            <span className="block-title">Model Answer</span>
+                            <p className="block-text">{q.idealAnswer}</p>
+                          </div>
+                        )}
+
+                        {/* Missed Concepts */}
+                        {q.missedConcepts && q.missedConcepts.length > 0 && (
+                          <div className="qna-block missed-concepts">
+                            <span className="block-title">Missed Concepts</span>
+                            <div className="missed-chips-row">
+                              {q.missedConcepts.map((concept, ci) => (
+                                <span key={ci} className="missed-chip">
+                                  ✕ {concept}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Question Speaking Analytics */}
+                        <div className="qna-block speaking-analytics-block">
+                          <span className="block-title">Speaking Analytics</span>
+                          <div className="mini-speaking-row">
+                            <span>Duration: <strong>{formatSeconds(qSpeaking.duration || 0)}</strong></span>
+                            <span>Word Count: <strong>{qSpeaking.wordCount || 0} words</strong></span>
+                            <span>Pace: <strong>{qSpeaking.wordsPerMinute || 0} WPM ({qSpeaking.pace || "Good"})</strong></span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}

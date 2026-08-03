@@ -1,0 +1,257 @@
+/* Smooth, professional skeleton loading styles for AI Mock Interview Platform */
+
+.skeleton-box {
+  background-color: #e2e8f0;
+  background-image: linear-gradient(
+    90deg,
+    #e2e8f0 0%,
+    #f1f5f9 50%,
+    #e2e8f0 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.6s infinite ease-in-out;
+  border-radius: 8px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-box {
+    animation: none;
+    background: #cbd5e1;
+  }
+}
+
+/* Primitives */
+.skeleton-text {
+  height: 1rem;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  border-radius: 6px;
+}
+
+.skeleton-text.title {
+  height: 1.5rem;
+  width: 60%;
+  margin-bottom: 0.75rem;
+}
+
+.skeleton-text.subtitle {
+  height: 1.1rem;
+  width: 40%;
+}
+
+.skeleton-text.short {
+  width: 30%;
+}
+
+.skeleton-circle {
+  border-radius: 50%;
+}
+
+.skeleton-button {
+  height: 44px;
+  width: 140px;
+  border-radius: 12px;
+}
+
+.skeleton-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+}
+
+/* Navbar Skeleton */
+.skeleton-navbar {
+  width: 100%;
+  height: 70px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  box-sizing: border-box;
+}
+
+.skeleton-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.skeleton-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* Dashboard Skeleton */
+.dashboard-skeleton-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eef2f6 0%, #f4f7fa 100%);
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-skeleton-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dashboard-skeleton-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.stat-card-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dashboard-skeleton-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+}
+
+.dashboard-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Create Interview Overlay Skeleton */
+.create-interview-skeleton-card {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 3rem 2.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 15px 40px rgba(18, 38, 63, 0.07);
+}
+
+.create-skeleton-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.create-skeleton-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+/* Interview Session Layout Skeleton */
+.session-skeleton-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2rem;
+  text-align: left;
+}
+
+.session-skeleton-sidebar {
+  border-right: 1px solid #e2e8f0;
+  padding-right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.session-skeleton-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.skeleton-step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+/* Recording Panel Skeleton */
+.recording-skeleton-panel {
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  text-align: center;
+  min-height: 240px;
+}
+
+.transcript-skeleton-block {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+}
+
+/* Results Dashboard Skeleton */
+.results-skeleton-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 2rem;
+}
+
+.results-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.results-skeleton-qna {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .session-skeleton-layout {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-skeleton-grid {
+    grid-template-columns: 1fr;
+  }
+  .results-skeleton-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

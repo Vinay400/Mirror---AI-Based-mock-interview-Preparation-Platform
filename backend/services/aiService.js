@@ -52,9 +52,9 @@ export async function generateQuestions(role, experience, difficulty, numQuestio
 } 
 
 function buildEvaluationPrompt(role, experience, questionsAndAnswers) {
-    return `You are a senior software engineer and technical interviewer.
+    return `You are a senior software engineer and expert technical interviewer.
 
-Your task is to evaluate the candidate's answers based on their speech-to-text transcripts.
+Your task is to evaluate the candidate's answers based on their speech-to-text transcripts and return a comprehensive evaluation JSON containing Technical Evaluation and Language & Communication Evaluation.
 
 Candidate Details:
 - Job Role: ${role}
@@ -68,39 +68,98 @@ Instructions for Evaluation:
 The candidate's responses were transcribed using Automatic Speech Recognition (ASR).
 Transcripts may contain minor speech recognition or phonetic inaccuracies.
 
+SECTION 1 — Technical Evaluation Requirements:
+- "overallScore": Overall interview score (0 to 100).
+- "technicalScore": Evaluate technical knowledge demonstrated across all answers (0 to 100).
+- "problemSolvingScore": Evaluate reasoning, logical thinking, technical approach, and explanation quality (0 to 100).
+- "recommendation": Return EXACTLY ONE of: "Strong Hire", "Hire", "Borderline", "Needs Improvement".
+- "summary": A concise paragraph summarizing overall interview performance (mention strongest area, weakest area, and overall performance in approximately 4 to 6 sentences).
+- "strengths": 3 to 6 concise bullet points highlighting candidate technical strengths.
+- "improvementAreas": 3 to 6 actionable improvements.
+- "recommendedTopics": Concrete study recommendations based on weak areas (concrete technical topics, avoid generic advice).
+
+SECTION 2 — Language & Communication Evaluation Requirements:
+Evaluate transcript text ONLY. Do NOT evaluate voice confidence, tone, pronunciation, speaking speed, or pauses.
+Include an overall "communication" object:
+- "grammar": Grammar accuracy (0 to 100).
+- "clarity": Clarity of expression (0 to 100).
+- "structure": Logical explanation structure (0 to 100).
+- "completeness": Completeness of answers (0 to 100).
+- "vocabulary": Vocabulary usage (0 to 100).
+- "summary": Short communication summary explaining what was good and what can improve.
+
 For EACH question item in questionsAndAnswers:
-1. Preserve the exact "id" provided for that question. Never modify, omit, or alter the "id".
-2. Return every question exactly once using its original "id".
-3. Correct ONLY obvious speech recognition (ASR) mistakes using the interview question context.
-4. Preserve the candidate's original intended meaning completely.
-5. Do NOT invent information or add technical details the candidate did not mention.
-6. Do NOT improve weak or incomplete answers beyond fixing speech recognition errors.
-7. If something is unclear or you are not confident about a correction, leave the original wording unchanged.
-8. Provide "transcriptConfidence" (integer from 0 to 10) representing your confidence that the corrected transcript accurately reflects the intended spoken words based on the question context and the raw transcript.
-9. Evaluate the corrected answer and score it from 0 to 10.
-10. Provide clear, constructive feedback.
+1. "id": Return the exact same question ID received in the input. Never modify, omit, or alter it.
+2. "question": The original question text.
+3. "topic": Classify each question into a category (e.g., React, JavaScript, Node.js, Express, MongoDB, SQL, DBMS, OOP, DSA, HR, Behavioral, System Design).
+4. "rawTranscript": The raw transcript provided.
+5. "correctedTranscript": Correct ONLY obvious ASR / transcription mistakes using question context. Do NOT improve weak answers or invent information. Preserve candidate's intended meaning.
+6. "transcriptConfidence": Integer between 0 and 10 indicating confidence that the corrected transcript accurately reflects the intended spoken answer.
+7. "score": Technical score from 0 to 100 for the individual answer.
+8. "feedback": Concise, constructive feedback mentioning what was good, what was missing, and how to improve.
+9. "idealAnswer": Concise model answer that would score highly for the question. Keep educational, interview-focused, and concise.
+10. "missedConcepts": Array of important concepts that were missing (or empty array [] if none missing).
+11. "communication": Question-level communication metrics object containing: "grammar" (0-100), "clarity" (0-100), "structure" (0-100), "completeness" (0-100), "vocabulary" (0-100).
 
-Finally, calculate an overall score (0 to 10) for the candidate's entire performance.
+Output Requirements:
+- Return ONLY valid JSON.
+- Do NOT include markdown code block wrappers (e.g. \`\`\`json).
+- Do NOT include explanations outside the JSON.
+- Return every question exactly once.
+- Preserve question IDs exactly as received.
 
-Return ONLY valid JSON matching this exact schema:
-
+Expected JSON Structure:
 {
+  "overallScore": 86,
+  "technicalScore": 89,
+  "problemSolvingScore": 84,
+  "recommendation": "Hire",
+  "summary": "...",
+  "strengths": [
+    "Strong React fundamentals",
+    "Clear technical explanations"
+  ],
+  "improvementAreas": [
+    "Provide deeper explanations",
+    "Improve database knowledge"
+  ],
+  "recommendedTopics": [
+    "Closures",
+    "Event Loop"
+  ],
+  "communication": {
+    "grammar": 90,
+    "clarity": 82,
+    "structure": 88,
+    "completeness": 84,
+    "vocabulary": 86,
+    "summary": "Candidate communicated technical concepts with strong clarity and grammar..."
+  },
   "questions": [
     {
-      "id": "<questionId>",
+      "id": "...",
       "question": "...",
+      "topic": "React",
       "rawTranscript": "...",
       "correctedTranscript": "...",
       "transcriptConfidence": 9,
+      "score": 85,
       "feedback": "...",
-      "score": 8
+      "idealAnswer": "...",
+      "missedConcepts": [
+        "Diffing algorithm",
+        "Reconciliation"
+      ],
+      "communication": {
+        "grammar": 90,
+        "clarity": 82,
+        "structure": 88,
+        "completeness": 84,
+        "vocabulary": 86
+      }
     }
-  ],
-  "overallScore": 8.0
+  ]
 }
-
-Return ONLY raw JSON.
-Do NOT include markdown formatting or \`\`\`json wrappers.
 `;
 }
 

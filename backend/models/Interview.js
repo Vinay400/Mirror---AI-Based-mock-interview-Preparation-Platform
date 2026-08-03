@@ -40,7 +40,10 @@ const interviewSchema = new mongoose.Schema(
     questions: [
       {
         question: String,
-
+        topic: {
+          type: String,
+          default: "",
+        },
         transcriptRaw: {
           type: String,
           default: "",
@@ -49,9 +52,39 @@ const interviewSchema = new mongoose.Schema(
           type: String,
           default: "",
         },
+        transcriptConfidence: {
+          type: Number,
+          default: 0,
+        },
         answer: String,
         feedback: String,
-        score: Number,
+        score: {
+          type: Number,
+          default: 0,
+        },
+        idealAnswer: {
+          type: String,
+          default: "",
+        },
+        missedConcepts: {
+          type: [String],
+          default: [],
+        },
+
+        communication: {
+          grammar: { type: Number, default: 0 },
+          clarity: { type: Number, default: 0 },
+          structure: { type: Number, default: 0 },
+          completeness: { type: Number, default: 0 },
+          vocabulary: { type: Number, default: 0 },
+        },
+
+        speakingAnalytics: {
+          duration: { type: Number, default: 0 },
+          wordCount: { type: Number, default: 0 },
+          wordsPerMinute: { type: Number, default: 0 },
+          pace: { type: String, default: "Good" },
+        },
 
         audio: {
           url: String,
@@ -62,7 +95,54 @@ const interviewSchema = new mongoose.Schema(
       },
     ],
 
-    overallScore: Number,
+    overallScore: {
+      type: Number,
+      default: 0,
+    },
+    technicalScore: {
+      type: Number,
+      default: 0,
+    },
+    problemSolvingScore: {
+      type: Number,
+      default: 0,
+    },
+    recommendation: {
+      type: String,
+      default: "Needs Improvement",
+    },
+    summary: {
+      type: String,
+      default: "",
+    },
+    strengths: {
+      type: [String],
+      default: [],
+    },
+    improvementAreas: {
+      type: [String],
+      default: [],
+    },
+    recommendedTopics: {
+      type: [String],
+      default: [],
+    },
+
+    communication: {
+      grammar: { type: Number, default: 0 },
+      clarity: { type: Number, default: 0 },
+      structure: { type: Number, default: 0 },
+      completeness: { type: Number, default: 0 },
+      vocabulary: { type: Number, default: 0 },
+      summary: { type: String, default: "" },
+    },
+
+    speakingAnalytics: {
+      totalSpeakingTime: { type: Number, default: 0 },
+      totalWordCount: { type: Number, default: 0 },
+      averageWordsPerMinute: { type: Number, default: 0 },
+      overallPace: { type: String, default: "Good" },
+    },
     status: {
       type: String,
       enum: ["Pending", "Completed"],
