@@ -80,12 +80,12 @@ SECTION 1 — Technical Evaluation Requirements:
 
 SECTION 2 — Language & Communication Evaluation Requirements:
 Evaluate transcript text ONLY. Do NOT evaluate voice confidence, tone, pronunciation, speaking speed, or pauses.
-Include an overall "communication" object:
-- "grammar": Grammar accuracy (0 to 100).
-- "clarity": Clarity of expression (0 to 100).
-- "structure": Logical explanation structure (0 to 100).
-- "completeness": Completeness of answers (0 to 100).
-- "vocabulary": Vocabulary usage (0 to 100).
+You MUST include an overall "communication" object containing all 6 properties:
+- "grammar": Grammar accuracy score (0 to 100 based on candidate transcript).
+- "clarity": Clarity of expression score (0 to 100).
+- "structure": Logical explanation structure score (0 to 100).
+- "completeness": Completeness of answers score (0 to 100).
+- "vocabulary": Vocabulary usage score (0 to 100).
 - "summary": Short communication summary explaining what was good and what can improve.
 
 For EACH question item in questionsAndAnswers:
@@ -99,10 +99,11 @@ For EACH question item in questionsAndAnswers:
 8. "feedback": Concise, constructive feedback mentioning what was good, what was missing, and how to improve.
 9. "idealAnswer": Concise model answer that would score highly for the question. Keep educational, interview-focused, and concise.
 10. "missedConcepts": Array of important concepts that were missing (or empty array [] if none missing).
-11. "communication": Question-level communication metrics object containing: "grammar" (0-100), "clarity" (0-100), "structure" (0-100), "completeness" (0-100), "vocabulary" (0-100).
+11. "communication": Question-level communication metrics object containing all 5 properties: "grammar" (0-100), "clarity" (0-100), "structure" (0-100), "completeness" (0-100), "vocabulary" (0-100).
 
 Output Requirements:
 - Return ONLY valid JSON.
+- Do NOT omit any required communication metric fields.
 - Do NOT include markdown code block wrappers (e.g. \`\`\`json).
 - Do NOT include explanations outside the JSON.
 - Return every question exactly once.

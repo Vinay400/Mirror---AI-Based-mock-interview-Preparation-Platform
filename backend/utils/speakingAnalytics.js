@@ -1,21 +1,23 @@
 export function calculateQuestionAnalytics(transcript = "", durationSeconds = 0) {
   const duration = Math.max(0, Math.round(Number(durationSeconds) || 0));
   
-  // Count words in transcript
-  const words = transcript.trim() ? transcript.trim().split(/\s+/).filter(Boolean) : [];
+  // Count words in transcript safely
+  const words = typeof transcript === "string" && transcript.trim()
+    ? transcript.trim().split(/\s+/).filter(Boolean)
+    : [];
   const wordCount = words.length;
 
   const wordsPerMinute = duration > 0 ? Math.round((wordCount / duration) * 60) : 0;
 
   let pace = "Good";
-  if (wordsPerMinute > 0) {
+  if (wordsPerMinute === 0) {
     pace = "Slow";
   } else if (wordsPerMinute < 110) {
-    pace = "Relaxed";
+    pace = "Slow";
   } else if (wordsPerMinute > 160) {
     pace = "Fast";
   } else {
-    pace = "Very Slow";
+    pace = "Good";
   }
 
   return {

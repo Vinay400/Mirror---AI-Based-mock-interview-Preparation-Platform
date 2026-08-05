@@ -109,6 +109,7 @@ const submitInterview = async (req, res) => {
 
     try {
       evaluation = JSON.parse(cleanJsonText);
+      console.log("Parsed Evaluation Communication:", evaluation.communication);
     } catch (parseErr) {
       console.error("JSON Parse Error:", parseErr);
 
@@ -157,15 +158,15 @@ const submitInterview = async (req, res) => {
       // SECTION 2: Per-question Language & Communication Evaluation
       const commItem = evalItem.communication || {};
       q.communication = {
-        grammar: typeof commItem.grammar === "number" ? commItem.grammar : 80,
-        clarity: typeof commItem.clarity === "number" ? commItem.clarity : 80,
-        structure: typeof commItem.structure === "number" ? commItem.structure : 80,
-        completeness: typeof commItem.completeness === "number" ? commItem.completeness : 80,
-        vocabulary: typeof commItem.vocabulary === "number" ? commItem.vocabulary : 80,
+        grammar: typeof commItem.grammar === "number" ? commItem.grammar : undefined,
+        clarity: typeof commItem.clarity === "number" ? commItem.clarity : undefined,
+        structure: typeof commItem.structure === "number" ? commItem.structure : undefined,
+        completeness: typeof commItem.completeness === "number" ? commItem.completeness : undefined,
+        vocabulary: typeof commItem.vocabulary === "number" ? commItem.vocabulary : undefined,
       };
 
       // SECTION 3: Computed Speaking Analytics (Deterministic Calculation)
-      const audioDuration = q.audio?.duration || 0;
+      const audioDuration = q.audio?.duration || q.speakingAnalytics?.duration || 0;
       const qAnalytics = calculateQuestionAnalytics(correctedText || q.transcriptRaw || "", audioDuration);
       q.speakingAnalytics = qAnalytics;
       questionAnalyticsList.push(qAnalytics);
@@ -200,12 +201,12 @@ const submitInterview = async (req, res) => {
     // SECTION 2: Overall Language & Communication Evaluation
     const overallComm = evaluation.communication || {};
     interview.communication = {
-      grammar: typeof overallComm.grammar === "number" ? overallComm.grammar : 80,
-      clarity: typeof overallComm.clarity === "number" ? overallComm.clarity : 80,
-      structure: typeof overallComm.structure === "number" ? overallComm.structure : 80,
-      completeness: typeof overallComm.completeness === "number" ? overallComm.completeness : 80,
-      vocabulary: typeof overallComm.vocabulary === "number" ? overallComm.vocabulary : 80,
-      summary: overallComm.summary || "Candidate communicated technical concepts with clarity.",
+      grammar: typeof overallComm.grammar === "number" ? overallComm.grammar : undefined,
+      clarity: typeof overallComm.clarity === "number" ? overallComm.clarity : undefined,
+      structure: typeof overallComm.structure === "number" ? overallComm.structure : undefined,
+      completeness: typeof overallComm.completeness === "number" ? overallComm.completeness : undefined,
+      vocabulary: typeof overallComm.vocabulary === "number" ? overallComm.vocabulary : undefined,
+      summary: overallComm.summary || "",
     };
 
     // SECTION 3: Computed Overall Speaking Analytics
@@ -239,11 +240,17 @@ const uploadAudio = async (req, res) => {
   try{
     console.log("req.body:", req.body);
     console.log("req.file:", req.file);
-    const { interviewId, questionId } = req.body;
-    console.log(interviewId);
-    console.log(questionId);
+    const { interviewId, questionId, duration } = req.body;
+    console.log("interviewId:", interviewId);
+    console.log("questionId:", questionId);
+    console.log("passed duration:", duration);
     const result = await uploadAudioToCloudinary(req.file.buffer);
-    console.log(result.format);
+    console.log("Cloudinary format:", result.format, "duration:", result.duration);
+
+    const clientDuration = Number(duration);
+    const audioDuration = !isNaN(clientDuration) && clientDuration > 0
+      ? clientDuration
+      : (Number(result.duration) || 0);
 
     const transcript = await transcribeAudio(
       result.secure_url,
@@ -268,8 +275,12 @@ const uploadAudio = async (req, res) => {
     question.audio = {
       url: result.secure_url,
       publicId: result.public_id,
-      duration: result.duration,
+      duration: audioDuration,
       format: result.format,
+    };
+    question.speakingAnalytics = {
+      ...question.speakingAnalytics,
+      duration: audioDuration,
     };
     question.transcriptRaw = transcript;
 

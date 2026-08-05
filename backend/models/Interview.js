@@ -72,18 +72,18 @@ const interviewSchema = new mongoose.Schema(
         },
 
         communication: {
-          grammar: { type: Number, default: 0 },
-          clarity: { type: Number, default: 0 },
-          structure: { type: Number, default: 0 },
-          completeness: { type: Number, default: 0 },
-          vocabulary: { type: Number, default: 0 },
+          grammar: { type: Number },
+          clarity: { type: Number },
+          structure: { type: Number },
+          completeness: { type: Number },
+          vocabulary: { type: Number },
         },
 
         speakingAnalytics: {
           duration: { type: Number, default: 0 },
           wordCount: { type: Number, default: 0 },
           wordsPerMinute: { type: Number, default: 0 },
-          pace: { type: String, default: "Good" },
+          pace: { type: String, default: "Slow" },
         },
 
         audio: {
@@ -129,11 +129,11 @@ const interviewSchema = new mongoose.Schema(
     },
 
     communication: {
-      grammar: { type: Number, default: 0 },
-      clarity: { type: Number, default: 0 },
-      structure: { type: Number, default: 0 },
-      completeness: { type: Number, default: 0 },
-      vocabulary: { type: Number, default: 0 },
+      grammar: { type: Number },
+      clarity: { type: Number },
+      structure: { type: Number },
+      completeness: { type: Number },
+      vocabulary: { type: Number },
       summary: { type: String, default: "" },
     },
 
@@ -141,7 +141,7 @@ const interviewSchema = new mongoose.Schema(
       totalSpeakingTime: { type: Number, default: 0 },
       totalWordCount: { type: Number, default: 0 },
       averageWordsPerMinute: { type: Number, default: 0 },
-      overallPace: { type: String, default: "Good" },
+      overallPace: { type: String, default: "Slow" },
     },
     status: {
       type: String,

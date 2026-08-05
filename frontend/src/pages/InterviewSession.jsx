@@ -57,6 +57,12 @@ export default function InterviewSession() {
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [timer, setTimer] = useState(0);
   const [recTimer, setRecTimer] = useState(0);
+  const recTimerRef = useRef(0);
+
+  useEffect(() => {
+    recTimerRef.current = recTimer;
+  }, [recTimer]);
+
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [micEnabled, setMicEnabled] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -211,10 +217,12 @@ export default function InterviewSession() {
             type: "audio/webm",
           });
 
+          const durationSeconds = recTimerRef.current || 0;
           const formData = new FormData();
           formData.append("audio", blob, "answer.webm");
           formData.append("interviewId", id);
           formData.append("questionId", activeQuestionIdRef.current);
+          formData.append("duration", durationSeconds);
 
           try {
             const response = await uploadAudio(formData);
@@ -946,18 +954,22 @@ export default function InterviewSession() {
     );
 
     const commData = interview.communication || {};
-    const commGrammar = normalizeScore100(commData.grammar || 80);
-    const commClarity = normalizeScore100(commData.clarity || 80);
-    const commStructure = normalizeScore100(commData.structure || 80);
-    const commCompleteness = normalizeScore100(commData.completeness || 80);
-    const commVocabulary = normalizeScore100(commData.vocabulary || 80);
-    const commSummary = commData.summary || "Candidate communicated technical concepts with clarity.";
+    const commGrammar = typeof commData.grammar === "number" ? normalizeScore100(commData.grammar) : null;
+    const commClarity = typeof commData.clarity === "number" ? normalizeScore100(commData.clarity) : null;
+    const commStructure = typeof commData.structure === "number" ? normalizeScore100(commData.structure) : null;
+    const commCompleteness = typeof commData.completeness === "number" ? normalizeScore100(commData.completeness) : null;
+    const commVocabulary = typeof commData.vocabulary === "number" ? normalizeScore100(commData.vocabulary) : null;
+    const commSummary = commData.summary?.trim() || null;
 
     const speakingData = interview.speakingAnalytics || {};
-    const totalSpeakingTime = speakingData.totalSpeakingTime || 0;
-    const totalWordCount = speakingData.totalWordCount || 0;
-    const avgWpm = speakingData.averageWordsPerMinute || 0;
-    const overallPace = speakingData.overallPace || "Good";
+    const totalSpeakingTime = typeof speakingData.totalSpeakingTime === "number" ? speakingData.totalSpeakingTime : null;
+    const totalWordCount = typeof speakingData.totalWordCount === "number" ? speakingData.totalWordCount : null;
+    const avgWpm = typeof speakingData.averageWordsPerMinute === "number" ? speakingData.averageWordsPerMinute : null;
+    const overallPace = speakingData.overallPace || null;
+
+    const formatMetricText = (val) => (val !== null ? `${val}/100` : "Not Available");
+    const formatMetricBarWidth = (val) => (val !== null ? `${val}%` : "0%");
+    const formatQCommMetric = (val) => (typeof val === "number" ? `${normalizeScore100(val)}/100` : "—");
 
     const recommendationText =
       interview.recommendation ||
@@ -1145,12 +1157,12 @@ export default function InterviewSession() {
               <div className="comm-metric-item">
                 <div className="comm-metric-header">
                   <span>Grammar Accuracy</span>
-                  <span className="comm-val">{commGrammar}/100</span>
+                  <span className="comm-val">{formatMetricText(commGrammar)}</span>
                 </div>
                 <div className="metric-bar-bg">
                   <div
                     className="metric-bar-fill communication"
-                    style={{ width: `${commGrammar}%` }}
+                    style={{ width: formatMetricBarWidth(commGrammar) }}
                   />
                 </div>
               </div>
@@ -1158,12 +1170,12 @@ export default function InterviewSession() {
               <div className="comm-metric-item">
                 <div className="comm-metric-header">
                   <span>Clarity & Expression</span>
-                  <span className="comm-val">{commClarity}/100</span>
+                  <span className="comm-val">{formatMetricText(commClarity)}</span>
                 </div>
                 <div className="metric-bar-bg">
                   <div
                     className="metric-bar-fill communication"
-                    style={{ width: `${commClarity}%` }}
+                    style={{ width: formatMetricBarWidth(commClarity) }}
                   />
                 </div>
               </div>
@@ -1171,12 +1183,12 @@ export default function InterviewSession() {
               <div className="comm-metric-item">
                 <div className="comm-metric-header">
                   <span>Explanation Structure</span>
-                  <span className="comm-val">{commStructure}/100</span>
+                  <span className="comm-val">{formatMetricText(commStructure)}</span>
                 </div>
                 <div className="metric-bar-bg">
                   <div
                     className="metric-bar-fill communication"
-                    style={{ width: `${commStructure}%` }}
+                    style={{ width: formatMetricBarWidth(commStructure) }}
                   />
                 </div>
               </div>
@@ -1184,12 +1196,12 @@ export default function InterviewSession() {
               <div className="comm-metric-item">
                 <div className="comm-metric-header">
                   <span>Completeness</span>
-                  <span className="comm-val">{commCompleteness}/100</span>
+                  <span className="comm-val">{formatMetricText(commCompleteness)}</span>
                 </div>
                 <div className="metric-bar-bg">
                   <div
                     className="metric-bar-fill communication"
-                    style={{ width: `${commCompleteness}%` }}
+                    style={{ width: formatMetricBarWidth(commCompleteness) }}
                   />
                 </div>
               </div>
@@ -1197,23 +1209,30 @@ export default function InterviewSession() {
               <div className="comm-metric-item full-width">
                 <div className="comm-metric-header">
                   <span>Vocabulary Usage</span>
-                  <span className="comm-val">{commVocabulary}/100</span>
+                  <span className="comm-val">{formatMetricText(commVocabulary)}</span>
                 </div>
                 <div className="metric-bar-bg">
                   <div
                     className="metric-bar-fill communication"
-                    style={{ width: `${commVocabulary}%` }}
+                    style={{ width: formatMetricBarWidth(commVocabulary) }}
                   />
                 </div>
               </div>
             </div>
 
-            {commSummary && (
+            {commSummary ? (
               <div className="comm-summary-box">
                 <h4>
                   <FaSpellCheck /> Communication Summary
                 </h4>
                 <p>{commSummary}</p>
+              </div>
+            ) : (
+              <div className="comm-summary-box">
+                <h4>
+                  <FaSpellCheck /> Communication Summary
+                </h4>
+                <p style={{ color: "#94a3b8", italic: "true" }}>Not Available</p>
               </div>
             )}
           </div>
@@ -1232,7 +1251,7 @@ export default function InterviewSession() {
                 <FaClock className="stat-icon" />
                 <div className="stat-info">
                   <span className="stat-label">Total Speaking Time</span>
-                  <span className="stat-value">{formatSeconds(totalSpeakingTime)}</span>
+                  <span className="stat-value">{totalSpeakingTime !== null ? formatSeconds(totalSpeakingTime) : "—"}</span>
                 </div>
               </div>
 
@@ -1240,7 +1259,7 @@ export default function InterviewSession() {
                 <FaComments className="stat-icon" />
                 <div className="stat-info">
                   <span className="stat-label">Total Word Count</span>
-                  <span className="stat-value">{totalWordCount} words</span>
+                  <span className="stat-value">{totalWordCount !== null ? `${totalWordCount} words` : "—"}</span>
                 </div>
               </div>
 
@@ -1248,7 +1267,7 @@ export default function InterviewSession() {
                 <FaTachometerAlt className="stat-icon" />
                 <div className="stat-info">
                   <span className="stat-label">Average WPM</span>
-                  <span className="stat-value">{avgWpm} WPM</span>
+                  <span className="stat-value">{avgWpm !== null ? `${avgWpm} WPM` : "—"}</span>
                 </div>
               </div>
 
@@ -1256,7 +1275,7 @@ export default function InterviewSession() {
                 <FaMicrophone className="stat-icon" />
                 <div className="stat-info">
                   <span className="stat-label">Speaking Pace</span>
-                  <span className={`pace-badge ${overallPace.toLowerCase()}`}>{overallPace} Pace</span>
+                  <span className={`pace-badge ${overallPace ? overallPace.toLowerCase() : "na"}`}>{overallPace ? `${overallPace} Pace` : "Not Available"}</span>
                 </div>
               </div>
             </div>
@@ -1359,11 +1378,11 @@ export default function InterviewSession() {
                         <div className="qna-block comm-breakdown-block">
                           <span className="block-title">Language & Communication Breakdown</span>
                           <div className="mini-comm-row">
-                            <span className="mini-comm-chip">Grammar: {normalizeScore100(qComm.grammar || 80)}/100</span>
-                            <span className="mini-comm-chip">Clarity: {normalizeScore100(qComm.clarity || 80)}/100</span>
-                            <span className="mini-comm-chip">Structure: {normalizeScore100(qComm.structure || 80)}/100</span>
-                            <span className="mini-comm-chip">Completeness: {normalizeScore100(qComm.completeness || 80)}/100</span>
-                            <span className="mini-comm-chip">Vocabulary: {normalizeScore100(qComm.vocabulary || 80)}/100</span>
+                            <span className="mini-comm-chip">Grammar: {formatQCommMetric(qComm.grammar)}</span>
+                            <span className="mini-comm-chip">Clarity: {formatQCommMetric(qComm.clarity)}</span>
+                            <span className="mini-comm-chip">Structure: {formatQCommMetric(qComm.structure)}</span>
+                            <span className="mini-comm-chip">Completeness: {formatQCommMetric(qComm.completeness)}</span>
+                            <span className="mini-comm-chip">Vocabulary: {formatQCommMetric(qComm.vocabulary)}</span>
                           </div>
                         </div>
 
@@ -1393,9 +1412,9 @@ export default function InterviewSession() {
                         <div className="qna-block speaking-analytics-block">
                           <span className="block-title">Speaking Analytics</span>
                           <div className="mini-speaking-row">
-                            <span>Duration: <strong>{formatSeconds(qSpeaking.duration || 0)}</strong></span>
-                            <span>Word Count: <strong>{qSpeaking.wordCount || 0} words</strong></span>
-                            <span>Pace: <strong>{qSpeaking.wordsPerMinute || 0} WPM ({qSpeaking.pace || "Good"})</strong></span>
+                            <span>Duration: <strong>{typeof qSpeaking.duration === "number" ? formatSeconds(qSpeaking.duration) : "—"}</strong></span>
+                            <span>Word Count: <strong>{typeof qSpeaking.wordCount === "number" ? `${qSpeaking.wordCount} words` : "—"}</strong></span>
+                            <span>Pace: <strong>{typeof qSpeaking.wordsPerMinute === "number" ? `${qSpeaking.wordsPerMinute} WPM` : "—"} ({qSpeaking.pace || "—"})</strong></span>
                           </div>
                         </div>
                       </div>
