@@ -2307,3 +2307,135 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ----------------------------------
+   Coding Environment & Question Types
+   ---------------------------------- */
+
+.type-badge {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 50px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.type-badge.type-technical {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.type-badge.type-hr {
+  background: #fdf2f8;
+  color: #db2777;
+  border: 1px solid #fbcfe8;
+}
+
+.type-badge.type-coding {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.answer-panel.coding-experience {
+  width: 100%;
+}
+
+.coding-environment {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.editor-wrapper {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #334155;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+  background: #1e1e1e;
+}
+
+.coding-controls-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.language-selector-box {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.code-icon {
+  color: #3b82f6;
+  font-size: 1.1rem;
+}
+
+.lang-label {
+  color: #64748b;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.language-dropdown {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.language-dropdown:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.run-code-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  background: #10b981;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.run-code-btn.disabled,
+.run-code-btn:disabled {
+  background: #94a3b8;
+  color: #f1f5f9;
+  cursor: not-allowed;
+  opacity: 0.7;
+  box-shadow: none;
+}
+
+.run-icon {
+  font-size: 0.8rem;
+}
+

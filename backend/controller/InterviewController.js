@@ -43,9 +43,31 @@ const startInterview = async (req, res) => {
       return res.status(500).json({ message: "Failed to parse generated questions.", error: parseErr.message });
     }
 
-    interview.questions = parsedQuestions.map(q => ({
-      question: q.question
-    }));
+    interview.questions = parsedQuestions.map(q => {
+      let qType = "Technical";
+      const qText = (q.question || "").toLowerCase();
+      const isCodingText = [
+        "write a ", "write function", "write code", "write react", "write component",
+        "write program", "write script", "write algorithm", "write query", "write sql",
+        "implement ", "create a function", "create a react", "create a component",
+        "build a component", "code a ", "code that", "function that", "passed as a prop",
+        "given an array", "given a string", "functional component"
+      ].some(kw => qText.includes(kw));
+
+      if (q.type) {
+        const lower = q.type.toLowerCase();
+        if (lower === "coding" || isCodingText) qType = "Coding";
+        else if (lower === "hr") qType = "HR";
+        else qType = "Technical";
+      } else if (isCodingText) {
+        qType = "Coding";
+      }
+
+      return {
+        question: q.question,
+        type: qType
+      };
+    });
     await interview.save();
 
     res.status(201).json(interview);
@@ -80,11 +102,28 @@ const submitInterview = async (req, res) => {
       });
     }
 
+    if (req.body && req.body.codeAnswers) {
+      Object.keys(req.body.codeAnswers).forEach((qId) => {
+        const q = interview.questions.id(qId);
+        if (q) {
+          if (req.body.codeAnswers[qId].userCode !== undefined) {
+            q.userCode = req.body.codeAnswers[qId].userCode;
+          }
+          if (req.body.codeAnswers[qId].language !== undefined) {
+            q.language = req.body.codeAnswers[qId].language;
+          }
+        }
+      });
+    }
+
     // Build array of questions with stable MongoDB _id as id
     const questionsAndAnswers = interview.questions.map((q) => ({
       id: q._id.toString(),
       question: q.question,
+      type: q.type || "Technical",
       rawTranscript: q.transcriptRaw || "",
+      userCode: q.userCode || "",
+      language: q.language || "cpp",
     }));
 
     // Single Gemini evaluation request for the entire interview
@@ -172,7 +211,6 @@ const submitInterview = async (req, res) => {
       questionAnalyticsList.push(qAnalytics);
     });
 
-    // SECTION 1: Technical Evaluation Metrics
     interview.overallScore =
       typeof evaluation.overallScore === "number"
         ? evaluation.overallScore

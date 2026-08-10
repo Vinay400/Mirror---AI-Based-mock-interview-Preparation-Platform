@@ -40,6 +40,10 @@ const interviewSchema = new mongoose.Schema(
     questions: [
       {
         question: String,
+        type: {
+          type: String,
+          default: "Technical",
+        },
         topic: {
           type: String,
           default: "",
@@ -56,6 +60,32 @@ const interviewSchema = new mongoose.Schema(
           type: Number,
           default: 0,
         },
+        language: {
+        type: String,
+        default: "cpp",
+    },
+
+    starterCode: {
+        type: String,
+        default: "",
+    },
+
+    userCode: {
+        type: String,
+        default: "",
+    },
+
+    // Optional if Run Code is implemented
+    codeOutput: {
+        type: String,
+        default: "",
+    },
+
+    executionStatus: {
+        type: String,
+        default: "",
+    },
+
         answer: String,
         feedback: String,
         score: {

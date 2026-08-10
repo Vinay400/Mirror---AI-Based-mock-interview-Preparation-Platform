@@ -13,6 +13,7 @@
   "description": "",
   "dependencies": {
     "@google/genai": "^2.10.0",
+    "@monaco-editor/react": "^4.7.0",
     "axios": "^1.18.1",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.3.0",

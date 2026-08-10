@@ -12,8 +12,8 @@ export const getInterview = (id) => {
 export const uploadAudio = (formData) => {
     return api.post("/interview/upload-audio", formData);
 }
-export const submitInterview = (id) => {
-    return api.post(`/interview/${id}/submit`);
+export const submitInterview = (id, data = {}) => {
+    return api.post(`/interview/${id}/submit`, data);
 }
 
 export const getUserInterviews = () => {
