@@ -20,8 +20,43 @@ Requirements:
    - 2 HR
 3. Questions should match the candidate's experience level.
 4. Do not repeat questions.
-5. Keep the wording concise and professional.
+5. Keep questions concise, realistic, professional, and suitable for an actual technical interview.
+6. Every question must have a "type" field.
+7. For "coding" questions, choose the appropriate evaluationType based on the problem:
+    - "algorithm" → programming problems that can be evaluated using test cases
+    - "react" → React component or React-specific implementation problems
+    - "frontend" → HTML/CSS/JavaScript UI implementation problems
+    - "sql" → SQL/database query problems
+    - "system-design" → coding/design problems that are primarily evaluated through code quality and architecture
+8. Coding questions must be practical programming tasks rather than theoretical questions.
 
+9. For coding questions, also include a "language" field indicating the recommended programming language.
+
+10. The language must be one of:
+    - "cpp"
+    - "python"
+    - "javascript"
+    - "java"
+    - "sql"
+11. For "technical" questions:
+   - evaluationType must be "spoken"
+   - These questions will be answered verbally using the microphone.
+
+12. For "hr" questions:
+    - evaluationType must be "spoken"
+    - These questions will be answered verbally using the microphone.
+13. For technical and HR questions, set "language" to null.
+
+14. For coding questions with evaluationType "algorithm", create questions that have clear inputs, expected outputs, and can be tested automatically.
+
+15. For coding questions with evaluationType "react", create questions that can be evaluated by rendering/testing the React component.
+
+16. For coding questions with evaluationType "frontend", create questions that can be evaluated through DOM/UI behavior.
+
+17. For coding questions with evaluationType "sql", create questions that can be evaluated against a test database.
+
+18. For coding questions with evaluationType "system-design", focus on implementation quality, architecture, and reasoning rather than simple input/output test cases.
+    
 Return ONLY valid JSON.
 
 Expected format:
@@ -30,13 +65,37 @@ Expected format:
   {
     "id": 1,
     "type": "technical",
+    "evaluationType": "spoken",
+    "language": null,
     "question": "Explain the Virtual DOM in React."
+  },
+  {
+    "id": 2,
+    "type": "coding",
+    "evaluationType": "algorithm",
+    "language": "cpp",
+    "question": "Implement a function to reverse a singly linked list."
+  },
+  {
+    "id": 3,
+    "type": "coding",
+    "evaluationType": "react",
+    "language": "javascript",
+    "question": "Create a React component that accepts name and age as props and displays them."
+  },
+  {
+    "id": 4,
+    "type": "hr",
+    "evaluationType": "spoken",
+    "language": null,
+    "question": "Tell me about a challenging project you worked on."
   }
 ]
 
+
 Do not include markdown.
 Do not include explanations.
-Do not wrap the JSON in \`\`\`.
+Do not wrap the JSON in code fences.
 `;
 }
 
