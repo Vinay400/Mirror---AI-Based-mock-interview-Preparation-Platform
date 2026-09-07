@@ -41,6 +41,8 @@ export default function InterviewActive({
   state,
   repeatQuestion,
   isQuestionAnswered,
+  answers,
+  audioAnswers,
   codeAnswers,
   languageAnswers,
   handleCodeChange,
@@ -50,6 +52,12 @@ export default function InterviewActive({
   const isCoding = isCodingQuestion(currentQuestion);
   const rawType = currentQuestion?.type ? String(currentQuestion.type).toLowerCase() : "technical";
   const questionType = isCoding ? "Coding" : rawType === "hr" ? "HR" : "Technical";
+
+  const hasAudioRecorded = !!(
+    audioAnswers?.[currentQuestion._id] ||
+    (answers?.[currentQuestion._id] && String(answers[currentQuestion._id]).trim().length > 0) ||
+    currentQuestion?.transcriptRaw
+  );
 
   return (
     <div className="session-container">
@@ -158,92 +166,96 @@ export default function InterviewActive({
 
             {/* Helper to render Audio Recording Panel */}
             {(() => {
-              const renderRecordingPanel = (isCodingMode = false) => (
-                <div className="recording-card-panel" style={isCodingMode ? { marginTop: "1rem" } : {}}>
-                  {isCodingMode && (
-                    <div style={{ marginBottom: "0.75rem", fontSize: "0.9rem", color: "#475569", fontWeight: "600", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                      <span>🎙️</span>
-                      <span>Verbal Explanation: You can also record a spoken explanation of your code solution</span>
-                    </div>
-                  )}
-                  {/* Uploading Loading State */}
-                  {isUploading && uploadStage === "uploading" && (
-                    <SkeletonRecordingPanel message="Uploading your response..." />
-                  )}
+              const renderRecordingPanel = (isCodingMode = false) => {
+                const isAudioUploaded = isCodingMode ? hasAudioRecorded : hasRecordedAnswer;
 
-                  {/* Azure Speech Transcribing State */}
-                  {isUploading && uploadStage === "transcribing" && (
-                    <SkeletonTranscriptBlock message="Converting speech to text..." />
-                  )}
-
-                  {/* Idle State: Question Not Answered Yet */}
-                  {!isRecording && !isUploading && uploadStage === "idle" && !hasRecordedAnswer && (
-                    <div className="recording-status-box idle">
-                      <button
-                        className="start-record-btn"
-                        onClick={startRecording}
-                      >
-                        <span className="mic-emoji">🎤</span> Start Recording
-                      </button>
-                      <p className="recording-hint">
-                        {isCodingMode
-                          ? "Click to record a verbal explanation of your code solution."
-                          : "Click to start answering this question."}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Answered State: Question Answer Already Uploaded & Saved */}
-                  {!isRecording && !isUploading && uploadStage === "idle" && hasRecordedAnswer && (
-                    <div className="recording-status-box answer-uploaded">
-                      <div className="uploaded-badge-circle">
-                        <FaCheckCircle />
+                return (
+                  <div className="recording-card-panel" style={isCodingMode ? { marginTop: "1rem" } : {}}>
+                    {isCodingMode && (
+                      <div style={{ marginBottom: "0.75rem", fontSize: "0.9rem", color: "#475569", fontWeight: "600", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <span>🎙️</span>
+                        <span>Verbal Explanation (Optional): Record a spoken explanation of your code solution</span>
                       </div>
-                      <h3 className="uploaded-title">✓ Verbal Explanation Recorded</h3>
-                      <p className="uploaded-subtext">
-                        Your audio response for this question has been saved.
-                      </p>
-                      <button
-                        className="rerecord-btn"
-                        onClick={startRecording}
-                      >
-                        <FaMicrophone /> Re-record Explanation
-                      </button>
-                    </div>
-                  )}
+                    )}
+                    {/* Uploading Loading State */}
+                    {isUploading && uploadStage === "uploading" && (
+                      <SkeletonRecordingPanel message="Uploading your response..." />
+                    )}
 
-                  {/* Active Recording State */}
-                  {isRecording && !isUploading && (
-                    <div className="recording-status-box active-recording">
-                      <div className="recording-live-header">
-                        <div className="recording-indicator">
-                          <span className="red-dot" />
-                          <span>Recording...</span>
-                        </div>
-                        <div className="recording-timer">
-                          {formatTime(recTimer)}
-                        </div>
+                    {/* Azure Speech Transcribing State */}
+                    {isUploading && uploadStage === "transcribing" && (
+                      <SkeletonTranscriptBlock message="Converting speech to text..." />
+                    )}
+
+                    {/* Idle State: Audio Not Recorded Yet */}
+                    {!isRecording && !isUploading && uploadStage === "idle" && !isAudioUploaded && (
+                      <div className="recording-status-box idle">
+                        <button
+                          className="start-record-btn"
+                          onClick={startRecording}
+                        >
+                          <span className="mic-emoji">🎤</span> Start Recording
+                        </button>
+                        <p className="recording-hint">
+                          {isCodingMode
+                            ? "Click to record a verbal explanation of your code solution (Optional)."
+                            : "Click to start answering this question."}
+                        </p>
                       </div>
+                    )}
 
-                      <AudioWaveform
-                        stream={audioStream}
-                        isRecording={isRecording}
-                      />
+                    {/* Answered State: Audio Response Recorded & Saved */}
+                    {!isRecording && !isUploading && uploadStage === "idle" && isAudioUploaded && (
+                      <div className="recording-status-box answer-uploaded">
+                        <div className="uploaded-badge-circle">
+                          <FaCheckCircle />
+                        </div>
+                        <h3 className="uploaded-title">✓ Verbal Explanation Recorded</h3>
+                        <p className="uploaded-subtext">
+                          Your audio response for this question has been saved.
+                        </p>
+                        <button
+                          className="rerecord-btn"
+                          onClick={startRecording}
+                        >
+                          <FaMicrophone /> Re-record Explanation
+                        </button>
+                      </div>
+                    )}
 
-                      <p className="recording-subtext">
-                        Speak naturally. Click Stop when finished.
-                      </p>
+                    {/* Active Recording State */}
+                    {isRecording && !isUploading && (
+                      <div className="recording-status-box active-recording">
+                        <div className="recording-live-header">
+                          <div className="recording-indicator">
+                            <span className="red-dot" />
+                            <span>Recording...</span>
+                          </div>
+                          <div className="recording-timer">
+                            {formatTime(recTimer)}
+                          </div>
+                        </div>
 
-                      <button
-                        className="stop-record-btn"
-                        onClick={stopRecording}
-                      >
-                        <FaStop className="stop-icon" /> Stop Recording
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
+                        <AudioWaveform
+                          stream={audioStream}
+                          isRecording={isRecording}
+                        />
+
+                        <p className="recording-subtext">
+                          Speak naturally. Click Stop when finished.
+                        </p>
+
+                        <button
+                          className="stop-record-btn"
+                          onClick={stopRecording}
+                        >
+                          <FaStop className="stop-icon" /> Stop Recording
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              };
 
               return isCoding ? (
                 <div className="answer-panel coding-experience">

@@ -135,38 +135,46 @@ const startInterview = async (req, res) => {
         starterCode: q.starterCode || "",
       };
 
-      if (qType === "Coding" && q.referenceSolution && Array.isArray(q.testInputs)) {
-        questionObj.referenceSolution = q.referenceSolution;
+      const refSol = q.referenceSolution || q.reference_solution || q.solution || "";
+      const rawInputs = Array.isArray(q.testInputs) && q.testInputs.length > 0
+        ? q.testInputs
+        : (Array.isArray(q.test_inputs) && q.test_inputs.length > 0 ? q.test_inputs : ["0", "1", "2", "5", "10", "15", "20"]);
+
+      if (qType === "Coding") {
+        if (refSol) {
+          questionObj.referenceSolution = refSol;
+        }
         const validTestCases = [];
 
-        console.log(`Executing reference solution for question "${q.question}" against ${q.testInputs.length} test inputs...`);
+        console.log(`Executing reference solution for coding question "${q.question}"...`);
 
-        for (const rawInput of q.testInputs) {
-          if (typeof rawInput !== "string") continue;
-          const inputStr = rawInput.trim();
-          if (!inputStr) continue;
+        if (refSol) {
+          for (const rawInput of rawInputs) {
+            const inputStr = typeof rawInput === "string" ? rawInput.trim() : String(rawInput || "").trim();
+            if (!inputStr && inputStr !== "0") continue;
 
-          try {
-            const execResult = await executeCodeForInput({
-              sourceCode: q.referenceSolution,
-              language: q.language || "cpp",
-              stdin: inputStr,
-            });
-
-            if (execResult && execResult.status?.id === 3) {
-              validTestCases.push({
-                input: inputStr,
-                expectedOutput: execResult.stdout || "",
-                isHidden: true,
+            try {
+              const execResult = await executeCodeForInput({
+                sourceCode: refSol,
+                language: q.language || "cpp",
+                stdin: inputStr,
               });
-            } else {
-              console.warn(
-                `Reference solution execution skipped for input "${inputStr.slice(0, 30)}...":`,
-                execResult?.status?.description || execResult?.stderr
-              );
+
+              if (execResult && execResult.status?.id === 3) {
+                validTestCases.push({
+                  input: inputStr,
+                  expectedOutput: execResult.stdout || "",
+                  isHidden: true,
+                });
+              } else {
+                console.warn(
+                  `Reference solution execution skipped for input "${inputStr.slice(0, 30)}...":`,
+                  execResult?.status?.description || execResult?.stderr
+                );
+              }
+            } catch (execErr) {
+              console.error("Error executing reference solution via Judge0:", execErr.message);
             }
-          } catch (execErr) {
-            console.error("Error executing reference solution via Judge0:", execErr.message);
           }
         }
 

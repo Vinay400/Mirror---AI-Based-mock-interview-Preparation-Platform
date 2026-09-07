@@ -494,6 +494,8 @@ export default function InterviewSession() {
         state={state}
         repeatQuestion={repeatQuestion}
         isQuestionAnswered={isQuestionAnswered}
+        answers={answers}
+        audioAnswers={audioAnswers}
         codeAnswers={codeAnswers}
         languageAnswers={languageAnswers}
         handleCodeChange={handleCodeChange}

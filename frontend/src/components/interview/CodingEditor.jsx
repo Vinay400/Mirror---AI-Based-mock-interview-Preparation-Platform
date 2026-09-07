@@ -319,7 +319,7 @@ export default function CodingEditor({
                   marginBottom: "0.5rem",
                 }}
               >
-                Sample Input Cases
+                Sample Test Cases
               </h4>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                 {visibleTestCases.map((tc, idx) => (
@@ -327,19 +327,29 @@ export default function CodingEditor({
                     key={idx}
                     style={{
                       background: "#1e293b",
-                      padding: "0.6rem 0.9rem",
+                      padding: "0.75rem 1rem",
                       borderRadius: "6px",
                       color: "#e2e8f0",
                       fontSize: "0.85rem",
                       fontFamily: "monospace",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.35rem",
                     }}
                   >
-                    <span style={{ color: "#38bdf8", fontWeight: "bold", marginRight: "0.5rem" }}>
-                      Sample {idx + 1}:
-                    </span>
-                    <pre style={{ display: "inline", margin: 0, whiteSpace: "pre-wrap" }}>
-                      {tc.input}
-                    </pre>
+                    <div style={{ color: "#38bdf8", fontWeight: "bold" }}>
+                      Sample Test {idx + 1}
+                    </div>
+                    <div>
+                      <span style={{ color: "#94a3b8" }}>Input: </span>
+                      <span>{tc.input}</span>
+                    </div>
+                    {tc.expectedOutput && (
+                      <div>
+                        <span style={{ color: "#94a3b8" }}>Expected Output: </span>
+                        <span>{tc.expectedOutput}</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -383,34 +393,44 @@ export default function CodingEditor({
                     key={i}
                     style={{
                       display: "flex",
-                      justify: "space-between",
-                      alignItems: "center",
+                      flexDirection: "column",
+                      gap: "0.35rem",
                       padding: "0.75rem 1rem",
                       borderRadius: "6px",
                       background: res.passed ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
                       borderLeft: res.passed ? "4px solid #10b981" : "4px solid #ef4444",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                      {res.passed ? (
-                        <FaCheckCircle style={{ color: "#10b981", fontSize: "1.1rem" }} />
-                      ) : (
-                        <FaTimesCircle style={{ color: "#ef4444", fontSize: "1.1rem" }} />
-                      )}
-                      <span style={{ color: "#f8fafc", fontWeight: "600", fontSize: "0.9rem" }}>
-                        Test Case {res.testCase} {res.isHidden ? "(Hidden)" : "(Visible)"}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                        {res.passed ? (
+                          <FaCheckCircle style={{ color: "#10b981", fontSize: "1.1rem" }} />
+                        ) : (
+                          <FaTimesCircle style={{ color: "#ef4444", fontSize: "1.1rem" }} />
+                        )}
+                        <span style={{ color: "#f8fafc", fontWeight: "600", fontSize: "0.9rem" }}>
+                          {res.isHidden ? `Test Case ${res.testCase}` : `Sample Test ${res.testCase}`}
+                        </span>
+                      </div>
+
+                      <span
+                        style={{
+                          color: res.passed ? "#34d399" : "#f87171",
+                          fontWeight: "600",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        {res.status}
                       </span>
                     </div>
 
-                    <span
-                      style={{
-                        color: res.passed ? "#34d399" : "#f87171",
-                        fontWeight: "600",
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      {res.status}
-                    </span>
+                    {!res.isHidden && (res.input || res.actualOutput || res.expectedOutput) && (
+                      <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontFamily: "monospace", marginTop: "0.25rem", paddingLeft: "1.7rem" }}>
+                        {res.input && <div>Input: {res.input}</div>}
+                        {res.expectedOutput && <div>Expected: {res.expectedOutput}</div>}
+                        {res.actualOutput && <div>Actual: {res.actualOutput}</div>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

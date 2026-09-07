@@ -465,8 +465,8 @@ export default function InterviewResults({
 
                   {!isCollapsed && (
                     <div className="qna-content-box">
-                      {/* Coding Evaluation Results */}
-                      {q.codingEvaluation && typeof q.codingEvaluation.totalTests === "number" && (
+                      {/* Coding Evaluation Results (Coding Questions Only) */}
+                      {isCodingQ && q.codingEvaluation && typeof q.codingEvaluation.totalTests === "number" && q.codingEvaluation.totalTests > 0 && (
                         <div className="qna-block coding-eval-block" style={{ background: "#0f172a", border: "1px solid #1e293b", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
                             <span className="block-title" style={{ color: "#38bdf8", fontWeight: "bold" }}>
