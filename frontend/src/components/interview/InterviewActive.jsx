@@ -248,7 +248,11 @@ export default function InterviewActive({
               return isCoding ? (
                 <div className="answer-panel coding-experience">
                   <CodingEditor
-                    code={codeAnswers[currentQuestion._id] || ""}
+                    interviewId={interview._id}
+                    questionId={currentQuestion._id}
+                    visibleTestCases={currentQuestion.visibleTestCases || []}
+                    starterCode={currentQuestion.starterCode || ""}
+                    code={codeAnswers[currentQuestion._id]}
                     language={
                       languageAnswers[currentQuestion._id] ||
                       currentQuestion.language ||

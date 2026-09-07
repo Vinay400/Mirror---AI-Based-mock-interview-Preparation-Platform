@@ -1,31 +1,80 @@
 import express from "express";
 import Interview from "../models/Interview.js";
-import {generateQuestions, evaluateAnswers} from '../services/aiService.js'
-import { uploadAudioToCloudinary } from "../services/cloudinaryService.js"
+import { generateQuestions, evaluateAnswers } from "../services/aiService.js";
+import { uploadAudioToCloudinary } from "../services/cloudinaryService.js";
 import { transcribeAudio } from "../services/speechService.js";
+import { executeCodeForInput } from "../services/judge0Service.js";
 import {
   calculateQuestionAnalytics,
   calculateInterviewAnalytics,
 } from "../utils/speakingAnalytics.js";
-const startInterview = async (req, res) => {
-  try{
-    const { jobRole,
-            experienceLevel,
-            difficulty,
-            interviewType,
-            numQuestions,
-            additionalSkills  } = req.body;
-    const interview = await Interview.create({
-        user: req.user._id,
-        jobRole,
-        experienceLevel,
-        difficulty,
-        interviewType,
-        numQuestions,
-        additionalSkills
+
+// Helper function to sanitize interview response for candidate frontend
+function sanitizeInterviewForCandidate(interviewDoc) {
+  if (!interviewDoc) return null;
+  const obj = interviewDoc.toObject ? interviewDoc.toObject() : JSON.parse(JSON.stringify(interviewDoc));
+  
+  if (Array.isArray(obj.questions)) {
+    obj.questions = obj.questions.map((q) => {
+      // NEVER expose referenceSolution to candidate
+      delete q.referenceSolution;
+
+      if (Array.isArray(q.testCases)) {
+        // Expose visible test cases
+        q.visibleTestCases = q.testCases
+          .filter((tc) => !tc.isHidden)
+          .map((tc) => ({
+            _id: tc._id,
+            input: tc.input,
+            expectedOutput: tc.expectedOutput,
+            isHidden: false,
+          }));
+
+        // Sanitize testCases so hidden inputs & expected outputs are removed
+        q.testCases = q.testCases.map((tc) => {
+          if (tc.isHidden) {
+            return {
+              _id: tc._id,
+              isHidden: true,
+            };
+          }
+          return {
+            _id: tc._id,
+            input: tc.input,
+            expectedOutput: tc.expectedOutput,
+            isHidden: false,
+          };
+        });
+      }
+      return q;
     });
-    console.log(interview);
-    const questions = await generateQuestions(
+  }
+  return obj;
+}
+
+const startInterview = async (req, res) => {
+  try {
+    const {
+      jobRole,
+      experienceLevel,
+      difficulty,
+      interviewType,
+      numQuestions,
+      additionalSkills,
+    } = req.body;
+
+    const interview = await Interview.create({
+      user: req.user._id,
+      jobRole,
+      experienceLevel,
+      difficulty,
+      interviewType,
+      numQuestions,
+      additionalSkills,
+    });
+
+    console.log("Created interview instance:", interview._id);
+    const questionsRaw = await generateQuestions(
       jobRole,
       experienceLevel,
       difficulty,
@@ -33,17 +82,32 @@ const startInterview = async (req, res) => {
       interviewType,
       additionalSkills
     );
-    console.log("Raw generated questions:", questions);
+
+    let cleanJsonText = (questionsRaw || "").trim();
+    if (cleanJsonText.startsWith("```json")) {
+      cleanJsonText = cleanJsonText.slice(7);
+    } else if (cleanJsonText.startsWith("```")) {
+      cleanJsonText = cleanJsonText.slice(3);
+    }
+    if (cleanJsonText.endsWith("```")) {
+      cleanJsonText = cleanJsonText.slice(0, -3);
+    }
+    cleanJsonText = cleanJsonText.trim();
 
     let parsedQuestions = [];
     try {
-      parsedQuestions = JSON.parse(questions);
+      parsedQuestions = JSON.parse(cleanJsonText);
     } catch (parseErr) {
       console.error("JSON Parse Error on questions:", parseErr);
-      return res.status(500).json({ message: "Failed to parse generated questions.", error: parseErr.message });
+      return res.status(500).json({
+        message: "Failed to parse generated questions.",
+        error: parseErr.message,
+      });
     }
 
-    interview.questions = parsedQuestions.map(q => {
+    const processedQuestions = [];
+
+    for (const q of parsedQuestions) {
       let qType = "Technical";
       const qText = (q.question || "").toLowerCase();
       const isCodingText = [
@@ -63,19 +127,70 @@ const startInterview = async (req, res) => {
         qType = "Coding";
       }
 
-      return {
+      const questionObj = {
         question: q.question,
-        type: qType
+        type: qType,
+        topic: q.topic || "",
+        language: q.language || "cpp",
+        starterCode: q.starterCode || "",
       };
-    });
+
+      if (qType === "Coding" && q.referenceSolution && Array.isArray(q.testInputs)) {
+        questionObj.referenceSolution = q.referenceSolution;
+        const validTestCases = [];
+
+        console.log(`Executing reference solution for question "${q.question}" against ${q.testInputs.length} test inputs...`);
+
+        for (const rawInput of q.testInputs) {
+          if (typeof rawInput !== "string") continue;
+          const inputStr = rawInput.trim();
+          if (!inputStr) continue;
+
+          try {
+            const execResult = await executeCodeForInput({
+              sourceCode: q.referenceSolution,
+              language: q.language || "cpp",
+              stdin: inputStr,
+            });
+
+            if (execResult && execResult.status?.id === 3) {
+              validTestCases.push({
+                input: inputStr,
+                expectedOutput: execResult.stdout || "",
+                isHidden: true,
+              });
+            } else {
+              console.warn(
+                `Reference solution execution skipped for input "${inputStr.slice(0, 30)}...":`,
+                execResult?.status?.description || execResult?.stderr
+              );
+            }
+          } catch (execErr) {
+            console.error("Error executing reference solution via Judge0:", execErr.message);
+          }
+        }
+
+        // Assign first ~2 as visible (isHidden: false) and rest as hidden (isHidden: true)
+        validTestCases.forEach((tc, idx) => {
+          tc.isHidden = idx >= 2;
+        });
+
+        questionObj.testCases = validTestCases;
+      }
+
+      processedQuestions.push(questionObj);
+    }
+
+    interview.questions = processedQuestions;
     await interview.save();
 
-    res.status(201).json(interview);
+    res.status(201).json(sanitizeInterviewForCandidate(interview));
   } catch (err) {
     console.error("startInterview Error:", err);
     res.status(500).json({ message: err.message });
   }
 };
+
 const getInterviewById = async (req, res) => {
   try {
     const interview = await Interview.findById(req.params.id);
@@ -84,7 +199,7 @@ const getInterviewById = async (req, res) => {
         message: "Interview Not Found!",
       });
     }
-    res.json(interview);
+    res.json(sanitizeInterviewForCandidate(interview));
   } catch (error) {
     res.status(500).json({
       message: error.message,
@@ -124,6 +239,7 @@ const submitInterview = async (req, res) => {
       rawTranscript: q.transcriptRaw || "",
       userCode: q.userCode || "",
       language: q.language || "cpp",
+      codingEvaluation: q.codingEvaluation || null,
     }));
 
     // Single Gemini evaluation request for the entire interview
@@ -183,7 +299,14 @@ const submitInterview = async (req, res) => {
       q.answer = correctedText;
 
       q.feedback = evalItem.feedback || "No feedback generated.";
-      q.score = typeof evalItem.score === "number" ? evalItem.score : 0;
+
+      // For coding questions, deterministic test case score is authoritative
+      if (q.type === "Coding" && q.codingEvaluation && typeof q.codingEvaluation.score === "number") {
+        q.score = q.codingEvaluation.score;
+      } else {
+        q.score = typeof evalItem.score === "number" ? evalItem.score : 0;
+      }
+
       q.topic = evalItem.topic || "General";
       q.transcriptConfidence =
         typeof evalItem.transcriptConfidence === "number"
@@ -255,7 +378,7 @@ const submitInterview = async (req, res) => {
 
     await interview.save();
 
-    res.status(200).json(interview);
+    res.status(200).json(sanitizeInterviewForCandidate(interview));
   } catch (err) {
     console.error("submitInterview Error:", err);
 
@@ -268,14 +391,15 @@ const submitInterview = async (req, res) => {
 const getUserInterviews = async (req, res) => {
   try {
     const interviews = await Interview.find({ user: req.user._id }).sort({ createdAt: -1 });
-    res.json(interviews);
+    res.json(interviews.map(sanitizeInterviewForCandidate));
   } catch (error) {
     console.error("getUserInterviews Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
+
 const uploadAudio = async (req, res) => {
-  try{
+  try {
     console.log("req.body:", req.body);
     console.log("req.file:", req.file);
     const { interviewId, questionId, duration } = req.body;
@@ -298,14 +422,14 @@ const uploadAudio = async (req, res) => {
 
     const interview = await Interview.findById(interviewId);
 
-    if(!interview) {
+    if (!interview) {
       return res.status(404).json({
         message: "Interview not found",
       });
     }
     const question = interview.questions.id(questionId);
 
-    if(!question){
+    if (!question) {
       return res.status(404).json({
         message: "Question not found",
       });
@@ -327,7 +451,7 @@ const uploadAudio = async (req, res) => {
       success: true,
       transcript: transcript,
     });
-  }  catch(err){
+  } catch (err) {
     console.error(err);
 
     res.status(500).json({
@@ -336,4 +460,5 @@ const uploadAudio = async (req, res) => {
     });
   }
 };
+
 export { startInterview, getInterviewById, submitInterview, getUserInterviews, uploadAudio };

@@ -465,6 +465,34 @@ export default function InterviewResults({
 
                   {!isCollapsed && (
                     <div className="qna-content-box">
+                      {/* Coding Evaluation Results */}
+                      {q.codingEvaluation && typeof q.codingEvaluation.totalTests === "number" && (
+                        <div className="qna-block coding-eval-block" style={{ background: "#0f172a", border: "1px solid #1e293b", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                            <span className="block-title" style={{ color: "#38bdf8", fontWeight: "bold" }}>
+                              🧪 Coding Test Cases Evaluation
+                            </span>
+                            <span style={{ padding: "0.25rem 0.75rem", borderRadius: "12px", background: q.codingEvaluation.passedTests === q.codingEvaluation.totalTests ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)", color: q.codingEvaluation.passedTests === q.codingEvaluation.totalTests ? "#34d399" : "#f87171", fontWeight: "bold", fontSize: "0.85rem" }}>
+                              {q.codingEvaluation.passedTests} / {q.codingEvaluation.totalTests} Test Cases Passed ({q.codingEvaluation.score}%)
+                            </span>
+                          </div>
+                          {Array.isArray(q.codingEvaluation.testResults) && q.codingEvaluation.testResults.length > 0 && (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.5rem" }}>
+                              {q.codingEvaluation.testResults.map((tr, tri) => (
+                                <div key={tri} style={{ background: tr.passed ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)", borderLeft: tr.passed ? "3px solid #10b981" : "3px solid #ef4444", padding: "0.5rem 0.75rem", borderRadius: "4px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem" }}>
+                                  <span style={{ color: "#f8fafc", fontWeight: "500" }}>
+                                    {tr.passed ? "✓" : "✗"} Test Case {tr.testCase || tri + 1} {tr.isHidden ? "(Hidden)" : "(Visible)"}
+                                  </span>
+                                  <span style={{ color: tr.passed ? "#34d399" : "#f87171", fontWeight: "bold", fontSize: "0.8rem" }}>
+                                    {tr.status || (tr.passed ? "Passed" : "Failed")}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* Transcripts */}
                       <div className="qna-block answer">
                         <div className="block-title-row">

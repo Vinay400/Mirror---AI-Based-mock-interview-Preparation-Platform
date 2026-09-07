@@ -32,6 +32,15 @@ export const getSubmission = async (token) => {
   return response.data;
 };
 
+export const LANGUAGE_IDS = {
+  c: 50,
+  cpp: 54,
+  go: 60,
+  java: 62,
+  javascript: 63,
+  python: 71,
+};
+
 export const runCode = async ({
   sourceCode,
   languageId,
@@ -57,7 +66,6 @@ export const runCode = async ({
     // 1 = In Queue
     // 2 = Processing
     // 3+ = Finished
-
     if (statusId >= 3) {
       return result;
     }
@@ -66,4 +74,21 @@ export const runCode = async ({
   }
 
   throw new Error("Code execution timed out.");
+};
+
+export const executeCodeForInput = async ({
+  sourceCode,
+  language,
+  stdin = "",
+}) => {
+  const langKey = (language || "").toLowerCase();
+  const languageId = LANGUAGE_IDS[langKey] || LANGUAGE_IDS.cpp;
+
+  const result = await runCode({
+    sourceCode,
+    languageId,
+    stdin,
+  });
+
+  return result;
 };
