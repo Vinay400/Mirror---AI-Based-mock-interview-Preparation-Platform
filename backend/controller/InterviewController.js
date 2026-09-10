@@ -127,11 +127,16 @@ const startInterview = async (req, res) => {
         qType = "Coding";
       }
 
+      const evalType = (q.evaluationType || "").toLowerCase() === "framework" || q.framework ? "framework" : (qType === "Coding" ? "judge0" : "spoken");
+      const frameworkVal = q.framework || "";
+
       const questionObj = {
         question: q.question,
         type: qType,
         topic: q.topic || "",
-        language: q.language || "cpp",
+        evaluationType: evalType,
+        framework: frameworkVal,
+        language: q.language || (frameworkVal === "flutter" ? "dart" : frameworkVal === "swift" ? "swift" : "cpp"),
         starterCode: q.starterCode || "",
       };
 
@@ -140,13 +145,14 @@ const startInterview = async (req, res) => {
         ? q.testInputs
         : (Array.isArray(q.test_inputs) && q.test_inputs.length > 0 ? q.test_inputs : ["0", "1", "2", "5", "10", "15", "20"]);
 
-      if (qType === "Coding") {
+      // Execute Judge0 test-case generation ONLY for executable judge0 coding questions
+      if (qType === "Coding" && evalType === "judge0") {
         if (refSol) {
           questionObj.referenceSolution = refSol;
         }
         const validTestCases = [];
 
-        console.log(`Executing reference solution for coding question "${q.question}"...`);
+        console.log(`Executing reference solution for judge0 coding question "${q.question}"...`);
 
         if (refSol) {
           for (const rawInput of rawInputs) {
@@ -244,10 +250,13 @@ const submitInterview = async (req, res) => {
       id: q._id.toString(),
       question: q.question,
       type: q.type || "Technical",
+      evaluationType: q.evaluationType || "judge0",
+      framework: q.framework || "",
       rawTranscript: q.transcriptRaw || "",
       userCode: q.userCode || "",
       language: q.language || "cpp",
       codingEvaluation: q.codingEvaluation || null,
+      frameworkEvaluation: q.frameworkEvaluation || null,
     }));
 
     // Single Gemini evaluation request for the entire interview
@@ -308,8 +317,16 @@ const submitInterview = async (req, res) => {
 
       q.feedback = evalItem.feedback || "No feedback generated.";
 
-      // For coding questions, deterministic test case score is authoritative
-      if (q.type === "Coding" && q.codingEvaluation && typeof q.codingEvaluation.score === "number") {
+      // Score assignment:
+      // 1. If framework question and frameworkEvaluation score exists, use that
+      // 2. If judge0 coding question and codingEvaluation score exists, use that
+      // 3. Otherwise, use overall question score from Gemini evaluation item
+      if (q.evaluationType === "framework" && q.frameworkEvaluation && typeof q.frameworkEvaluation.score === "number" && q.frameworkEvaluation.score > 0) {
+        q.score = q.frameworkEvaluation.score;
+        if (q.frameworkEvaluation.feedback) {
+          q.feedback = q.frameworkEvaluation.feedback;
+        }
+      } else if (q.type === "Coding" && q.codingEvaluation && typeof q.codingEvaluation.score === "number") {
         q.score = q.codingEvaluation.score;
       } else {
         q.score = typeof evalItem.score === "number" ? evalItem.score : 0;

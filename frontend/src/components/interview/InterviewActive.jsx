@@ -268,8 +268,10 @@ export default function InterviewActive({
                     language={
                       languageAnswers[currentQuestion._id] ||
                       currentQuestion.language ||
-                      "cpp"
+                      (currentQuestion.framework === "react" ? "javascript" : "cpp")
                     }
+                    evaluationType={currentQuestion.evaluationType}
+                    framework={currentQuestion.framework}
                     onCodeChange={(code) =>
                       handleCodeChange(currentQuestion._id, code)
                     }

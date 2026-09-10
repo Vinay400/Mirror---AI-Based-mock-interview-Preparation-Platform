@@ -1,5 +1,6 @@
 import Interview from "../models/Interview.js";
 import { runCode, executeCodeForInput, LANGUAGE_IDS } from "../services/judge0Service.js";
+import { evaluateFrameworkCode } from "../services/aiService.js";
 
 export function normalizeOutput(str) {
   if (typeof str !== "string") return "";
@@ -88,6 +89,75 @@ const evaluateCodeController = async (req, res) => {
     }
 
     const langToUse = language || question.language || "cpp";
+
+    // Handle Framework Evaluation (AI-based)
+    if (question.evaluationType === "framework" || question.framework) {
+      const frameworkName = question.framework || "react";
+      const rawEval = await evaluateFrameworkCode(
+        interview.jobRole,
+        interview.experienceLevel,
+        question.question,
+        frameworkName,
+        langToUse,
+        sourceCode
+      );
+
+      let cleanJsonText = (rawEval || "").trim();
+      if (cleanJsonText.startsWith("```json")) {
+        cleanJsonText = cleanJsonText.slice(7);
+      } else if (cleanJsonText.startsWith("```")) {
+        cleanJsonText = cleanJsonText.slice(3);
+      }
+      if (cleanJsonText.endsWith("```")) {
+        cleanJsonText = cleanJsonText.slice(0, -3);
+      }
+      cleanJsonText = cleanJsonText.trim();
+
+      let parsedEval;
+      try {
+        parsedEval = JSON.parse(cleanJsonText);
+      } catch (pErr) {
+        console.error("Framework AI Evaluation JSON parse error:", pErr);
+        parsedEval = {
+          score: 75,
+          correctness: 75,
+          frameworkKnowledge: 75,
+          codeQuality: 75,
+          bestPractices: 75,
+          feedback: rawEval || "Solution evaluated.",
+          strengths: [],
+          improvements: [],
+        };
+      }
+
+      question.userCode = sourceCode;
+      question.language = langToUse;
+      question.frameworkEvaluation = {
+        score: typeof parsedEval.score === "number" ? parsedEval.score : 0,
+        correctness: typeof parsedEval.correctness === "number" ? parsedEval.correctness : 0,
+        frameworkKnowledge: typeof parsedEval.frameworkKnowledge === "number" ? parsedEval.frameworkKnowledge : 0,
+        codeQuality: typeof parsedEval.codeQuality === "number" ? parsedEval.codeQuality : 0,
+        bestPractices: typeof parsedEval.bestPractices === "number" ? parsedEval.bestPractices : 0,
+        feedback: parsedEval.feedback || "",
+        strengths: Array.isArray(parsedEval.strengths) ? parsedEval.strengths : [],
+        improvements: Array.isArray(parsedEval.improvements) ? parsedEval.improvements : [],
+      };
+      question.score = question.frameworkEvaluation.score;
+      if (question.frameworkEvaluation.feedback) {
+        question.feedback = question.frameworkEvaluation.feedback;
+      }
+
+      await interview.save();
+
+      return res.status(200).json({
+        success: true,
+        evaluationType: "framework",
+        framework: frameworkName,
+        frameworkEvaluation: question.frameworkEvaluation,
+        score: question.score,
+      });
+    }
+
     let testCases = question.testCases || [];
 
     // Fallback: If no test cases exist on the question (e.g. legacy interview or failed initial generation), auto-generate them now

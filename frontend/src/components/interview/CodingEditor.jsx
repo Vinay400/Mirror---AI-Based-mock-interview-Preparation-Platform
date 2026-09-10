@@ -1,8 +1,20 @@
 import React, { useState } from "react";
 import Editor from "@monaco-editor/react";
-import { FaCode, FaPlay, FaCheckCircle, FaTimesCircle, FaVial, FaSpinner } from "react-icons/fa";
+import {
+  FaCode,
+  FaPlay,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaVial,
+  FaSpinner,
+  FaBrain,
+  FaInfoCircle,
+  FaExclamationTriangle,
+  FaLayerGroup,
+} from "react-icons/fa";
 import api from "../../api/axios.js";
 import { evaluateCodeSolution } from "../../api/interviewApi.js";
+import { isFrameworkQuestion, getFrameworkLabel } from "../../utils/questionUtils.js";
 
 const LANGUAGES = [
   { label: "C++", value: "cpp" },
@@ -13,12 +25,30 @@ const LANGUAGES = [
   { label: "Go", value: "go" },
 ];
 
+function getMonacoLanguage(framework, language) {
+  const fw = String(framework || "").toLowerCase();
+  const lang = String(language || "").toLowerCase();
+
+  if (fw === "react") return "javascript";
+  if (fw === "angular") return "typescript";
+  if (fw === "vue") return "javascript";
+  if (fw === "swift") return "swift";
+  if (fw === "flutter") return "javascript";
+
+  if (["cpp", "java", "python", "javascript", "typescript", "c", "go", "swift", "html", "css", "sql"].includes(lang)) {
+    return lang;
+  }
+  return "javascript";
+}
+
 export default function CodingEditor({
   interviewId,
   questionId,
   visibleTestCases = [],
   code,
   language,
+  evaluationType = "judge0",
+  framework = "",
   onCodeChange,
   onLanguageChange,
   starterCode,
@@ -29,6 +59,10 @@ export default function CodingEditor({
   const [evalResult, setEvalResult] = useState(null);
   const [activeTab, setActiveTab] = useState("tests"); // "tests" | "output"
   const [customInput, setCustomInput] = useState("");
+
+  const isFramework = evaluationType === "framework" || !!framework;
+  const frameworkLabel = getFrameworkLabel({ framework });
+  const monacoLang = getMonacoLanguage(framework, language);
 
   const handleRunCode = async () => {
     if (!code?.trim()) {
@@ -44,7 +78,6 @@ export default function CodingEditor({
       setIsRunning(true);
       setRunResult(null);
 
-      // Use customInput if provided, else use first sample test case input if available
       const stdinToUse = customInput || (visibleTestCases && visibleTestCases[0]?.input) || "";
 
       const response = await api.post("/code/run", {
@@ -52,8 +85,6 @@ export default function CodingEditor({
         language: language || "cpp",
         stdin: stdinToUse,
       });
-
-      console.log("Judge0 run response:", response.data);
 
       setRunResult({
         type: "success",
@@ -79,7 +110,7 @@ export default function CodingEditor({
     if (!code?.trim()) {
       setEvalResult({
         type: "error",
-        message: "Please write some code before running test cases.",
+        message: "Please write some code before requesting solution evaluation.",
       });
       setActiveTab("tests");
       return;
@@ -102,7 +133,7 @@ export default function CodingEditor({
         interviewId,
         questionId,
         sourceCode: code,
-        language: language || "cpp",
+        language: language || (isFramework ? "javascript" : "cpp"),
       });
 
       console.log("Evaluation response:", response.data);
@@ -113,13 +144,13 @@ export default function CodingEditor({
       });
       setActiveTab("tests");
     } catch (error) {
-      console.error("Test evaluation error:", error);
+      console.error("Evaluation error:", error);
 
       setEvalResult({
         type: "error",
         message:
           error.response?.data?.message ||
-          "Failed to evaluate test cases. Please try again.",
+          "Failed to evaluate solution. Please try again.",
       });
       setActiveTab("tests");
     } finally {
@@ -132,10 +163,35 @@ export default function CodingEditor({
 
   return (
     <div className="coding-environment">
+      {/* FRAMEWORK CHALLENGE NOTICE */}
+      {isFramework && (
+        <div
+          className="framework-notice-banner"
+          style={{
+            background: "#1e293b",
+            borderLeft: "4px solid #3b82f6",
+            borderRadius: "8px",
+            padding: "0.85rem 1.15rem",
+            marginBottom: "0.75rem",
+            color: "#e2e8f0",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+            <FaLayerGroup style={{ color: "#38bdf8", fontSize: "1.1rem" }} />
+            <strong style={{ fontSize: "0.98rem", color: "#f8fafc" }}>
+              {frameworkLabel} Coding Challenge
+            </strong>
+          </div>
+          <p style={{ margin: 0, fontSize: "0.86rem", color: "#94a3b8", lineHeight: "1.4" }}>
+            This question requires a <strong>{frameworkLabel}</strong> environment. 🚧 Interactive {frameworkLabel} execution is currently under development. Your solution will be reviewed using AI-based code evaluation.
+          </p>
+        </div>
+      )}
+
       <div className="editor-wrapper">
         <Editor
           height="400px"
-          language={language || "cpp"}
+          language={monacoLang}
           theme="vs-dark"
           value={code !== undefined ? code : starterCode || ""}
           onChange={(val) => onCodeChange(val || "")}
@@ -145,7 +201,7 @@ export default function CodingEditor({
             fontSize: 14,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
-            tabSize: 4,
+            tabSize: 2,
             padding: { top: 12, bottom: 12 },
             editContext: false,
           }}
@@ -172,67 +228,86 @@ export default function CodingEditor({
         >
           <FaCode className="code-icon" />
           <span className="lang-label" style={{ fontSize: "0.9rem", fontWeight: "500" }}>
-            Language:
+            {isFramework ? `Framework: ${frameworkLabel}` : "Language:"}
           </span>
-          <select
-            className="language-dropdown"
-            value={language || "cpp"}
-            onChange={(e) => {
-              onLanguageChange(e.target.value);
-              setRunResult(null);
-              setEvalResult(null);
-            }}
-            style={{
-              padding: "0.35rem 0.6rem",
-              borderRadius: "6px",
-              border: "1px solid #475569",
-              background: "#0f172a",
-              color: "#f8fafc",
-              cursor: "pointer",
-            }}
-          >
-            {LANGUAGES.map((lang) => (
-              <option key={lang.value} value={lang.value}>
-                {lang.label}
-              </option>
-            ))}
-          </select>
+
+          {isFramework ? (
+            <span
+              style={{
+                padding: "0.25rem 0.6rem",
+                borderRadius: "4px",
+                background: "#0f172a",
+                color: "#38bdf8",
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                border: "1px solid #334155",
+              }}
+            >
+              {language || monacoLang}
+            </span>
+          ) : (
+            <select
+              className="language-dropdown"
+              value={language || "cpp"}
+              onChange={(e) => {
+                onLanguageChange(e.target.value);
+                setRunResult(null);
+                setEvalResult(null);
+              }}
+              style={{
+                padding: "0.35rem 0.6rem",
+                borderRadius: "6px",
+                border: "1px solid #475569",
+                background: "#0f172a",
+                color: "#f8fafc",
+                cursor: "pointer",
+              }}
+            >
+              {LANGUAGES.map((lang) => (
+                <option key={lang.value} value={lang.value}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          <button
-            className={`run-code-btn ${isRunning ? "running" : ""}`}
-            onClick={handleRunCode}
-            disabled={isRunning || isEvaluating}
-            title={isRunning ? "Running code..." : "Run code with custom/sample input"}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              padding: "0.45rem 1rem",
-              background: "#3b82f6",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              cursor: isRunning ? "not-allowed" : "pointer",
-              fontWeight: "600",
-            }}
-          >
-            {isRunning ? <FaSpinner className="spin-icon" /> : <FaPlay className="run-icon" />}
-            {isRunning ? "Running..." : "Run Code"}
-          </button>
+          {!isFramework && (
+            <button
+              className={`run-code-btn ${isRunning ? "running" : ""}`}
+              onClick={handleRunCode}
+              disabled={isRunning || isEvaluating}
+              title={isRunning ? "Running code..." : "Run code with custom/sample input via Judge0"}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                padding: "0.45rem 1rem",
+                background: "#3b82f6",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: isRunning ? "not-allowed" : "pointer",
+                fontWeight: "600",
+              }}
+            >
+              {isRunning ? <FaSpinner className="spin-icon" /> : <FaPlay className="run-icon" />}
+              {isRunning ? "Running..." : "Run Code"}
+            </button>
+          )}
 
           <button
             className="submit-tests-btn"
             onClick={handleEvaluateTests}
             disabled={isRunning || isEvaluating}
-            title="Submit and run code solution against test cases"
+            title={isFramework ? "Submit framework solution for AI evaluation" : "Submit and run code solution against test cases"}
             style={{
               display: "flex",
               alignItems: "center",
               gap: "0.4rem",
               padding: "0.45rem 1rem",
-              background: "#10b981",
+              background: isFramework ? "#8b5cf6" : "#10b981",
               color: "#fff",
               border: "none",
               borderRadius: "6px",
@@ -240,8 +315,18 @@ export default function CodingEditor({
               fontWeight: "600",
             }}
           >
-            {isEvaluating ? <FaSpinner className="spin-icon" /> : <FaVial />}
-            {isEvaluating ? "Testing..." : "Submit & Run Tests"}
+            {isEvaluating ? (
+              <FaSpinner className="spin-icon" />
+            ) : isFramework ? (
+              <FaBrain />
+            ) : (
+              <FaVial />
+            )}
+            {isEvaluating
+              ? "Evaluating..."
+              : isFramework
+              ? "Review Solution (AI)"
+              : "Submit & Run Tests"}
           </button>
         </div>
       </div>
@@ -263,8 +348,8 @@ export default function CodingEditor({
             padding: "0.5rem 1rem",
             background: "none",
             border: "none",
-            borderBottom: activeTab === "tests" ? "3px solid #10b981" : "3px solid transparent",
-            color: activeTab === "tests" ? "#10b981" : "#94a3b8",
+            borderBottom: activeTab === "tests" ? `3px solid ${isFramework ? "#8b5cf6" : "#10b981"}` : "3px solid transparent",
+            color: activeTab === "tests" ? (isFramework ? "#a78bfa" : "#10b981") : "#94a3b8",
             fontWeight: "600",
             cursor: "pointer",
             display: "flex",
@@ -272,30 +357,33 @@ export default function CodingEditor({
             gap: "0.4rem",
           }}
         >
-          <FaVial /> Test Cases & Results
+          {isFramework ? <FaBrain /> : <FaVial />}
+          {isFramework ? "AI Review & Evaluation" : "Test Cases & Results"}
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("output")}
-          style={{
-            padding: "0.5rem 1rem",
-            background: "none",
-            border: "none",
-            borderBottom: activeTab === "output" ? "3px solid #3b82f6" : "3px solid transparent",
-            color: activeTab === "output" ? "#3b82f6" : "#94a3b8",
-            fontWeight: "600",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <FaPlay /> Standard Output
-        </button>
+        {!isFramework && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("output")}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === "output" ? "3px solid #3b82f6" : "3px solid transparent",
+              color: activeTab === "output" ? "#3b82f6" : "#94a3b8",
+              fontWeight: "600",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}
+          >
+            <FaPlay /> Standard Output
+          </button>
+        )}
       </div>
 
-      {/* TAB CONTENT: TEST CASES & RESULTS */}
+      {/* TAB CONTENT: TEST CASES & RESULTS (JUDGE0 & FRAMEWORK) */}
       {activeTab === "tests" && (
         <div
           className="test-cases-panel"
@@ -307,8 +395,8 @@ export default function CodingEditor({
             border: "1px solid #1e293b",
           }}
         >
-          {/* Sample Visible Test Cases */}
-          {visibleTestCases && visibleTestCases.length > 0 && (
+          {/* JUDGE0: Sample Visible Test Cases */}
+          {!isFramework && visibleTestCases && visibleTestCases.length > 0 && (
             <div style={{ marginBottom: "1rem" }}>
               <h4
                 style={{
@@ -356,8 +444,107 @@ export default function CodingEditor({
             </div>
           )}
 
-          {/* Test Evaluation Results */}
-          {evalData && (
+          {/* FRAMEWORK AI EVALUATION DISPLAY */}
+          {isFramework && evalData?.frameworkEvaluation && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justify: "space-between",
+                  alignItems: "center",
+                  marginBottom: "1rem",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                }}
+              >
+                <h4 style={{ color: "#f8fafc", fontSize: "1.1rem", margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <FaBrain style={{ color: "#a78bfa" }} /> AI Evaluation Results
+                </h4>
+                <span
+                  style={{
+                    padding: "0.3rem 0.85rem",
+                    borderRadius: "20px",
+                    background: "rgba(139, 92, 246, 0.2)",
+                    color: "#c084fc",
+                    fontWeight: "bold",
+                    fontSize: "0.95rem",
+                    border: "1px solid rgba(168, 85, 247, 0.3)",
+                  }}
+                >
+                  Score: {evalData.frameworkEvaluation.score}%
+                </span>
+              </div>
+
+              {/* 4 Metrics Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "1rem" }}>
+                <div style={{ background: "#1e293b", padding: "0.75rem", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginBottom: "0.25rem" }}>Framework Knowledge</div>
+                  <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#38bdf8" }}>
+                    {evalData.frameworkEvaluation.frameworkKnowledge || 0}%
+                  </div>
+                </div>
+                <div style={{ background: "#1e293b", padding: "0.75rem", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginBottom: "0.25rem" }}>Code Quality</div>
+                  <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#34d399" }}>
+                    {evalData.frameworkEvaluation.codeQuality || 0}%
+                  </div>
+                </div>
+                <div style={{ background: "#1e293b", padding: "0.75rem", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginBottom: "0.25rem" }}>Requirements / Correctness</div>
+                  <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#fbbf24" }}>
+                    {evalData.frameworkEvaluation.correctness || 0}%
+                  </div>
+                </div>
+                <div style={{ background: "#1e293b", padding: "0.75rem", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginBottom: "0.25rem" }}>Best Practices</div>
+                  <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#f472b6" }}>
+                    {evalData.frameworkEvaluation.bestPractices || 0}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Feedback */}
+              {evalData.frameworkEvaluation.feedback && (
+                <div style={{ background: "#1e293b", padding: "0.85rem 1rem", borderRadius: "6px", color: "#e2e8f0", fontSize: "0.9rem", lineHeight: "1.5", marginBottom: "1rem" }}>
+                  <strong style={{ color: "#f8fafc", display: "block", marginBottom: "0.35rem" }}>Feedback:</strong>
+                  {evalData.frameworkEvaluation.feedback}
+                </div>
+              )}
+
+              {/* Strengths & Improvements */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem", marginBottom: "1rem" }}>
+                {evalData.frameworkEvaluation.strengths?.length > 0 && (
+                  <div style={{ background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", padding: "0.75rem", borderRadius: "6px" }}>
+                    <div style={{ color: "#34d399", fontWeight: "bold", fontSize: "0.85rem", marginBottom: "0.35rem" }}>Strengths:</div>
+                    <ul style={{ margin: 0, paddingLeft: "1.2rem", color: "#cbd5e1", fontSize: "0.85rem" }}>
+                      {evalData.frameworkEvaluation.strengths.map((s, idx) => (
+                        <li key={idx}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {evalData.frameworkEvaluation.improvements?.length > 0 && (
+                  <div style={{ background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)", padding: "0.75rem", borderRadius: "6px" }}>
+                    <div style={{ color: "#fbbf24", fontWeight: "bold", fontSize: "0.85rem", marginBottom: "0.35rem" }}>Areas for Improvement:</div>
+                    <ul style={{ margin: 0, paddingLeft: "1.2rem", color: "#cbd5e1", fontSize: "0.85rem" }}>
+                      {evalData.frameworkEvaluation.improvements.map((imp, idx) => (
+                        <li key={idx}>{imp}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Disclaimer Notice */}
+              <div style={{ background: "rgba(30, 41, 59, 0.6)", padding: "0.6rem 0.85rem", borderRadius: "6px", color: "#94a3b8", fontSize: "0.8rem", fontStyle: "italic", border: "1px dashed #334155" }}>
+                ⚠ Evaluated using AI review. Interactive framework execution is currently unavailable.
+              </div>
+            </div>
+          )}
+
+          {/* JUDGE0 TEST EVALUATION RESULTS DISPLAY */}
+          {!isFramework && evalData && !evalData.frameworkEvaluation && (
             <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #334155" }}>
               <div
                 style={{
@@ -461,14 +648,22 @@ export default function CodingEditor({
                 padding: "1rem",
               }}
             >
-              Click <strong>"Submit & Run Tests"</strong> to test your solution against test cases.
+              {isFramework ? (
+                <span>
+                  Click <strong>"Review Solution (AI)"</strong> to submit your solution for AI code evaluation.
+                </span>
+              ) : (
+                <span>
+                  Click <strong>"Submit & Run Tests"</strong> to test your solution against test cases.
+                </span>
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* TAB CONTENT: STANDARD OUTPUT */}
-      {activeTab === "output" && (
+      {/* TAB CONTENT: STANDARD OUTPUT (JUDGE0 ONLY) */}
+      {!isFramework && activeTab === "output" && (
         <div
           className="code-output-panel"
           style={{ background: "#0f172a", borderRadius: "8px", padding: "1rem", marginTop: "0.75rem" }}

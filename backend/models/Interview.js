@@ -74,8 +74,18 @@ const interviewSchema = new mongoose.Schema(
         },
 
         // =========================
-        // Coding Question
+        // Coding Question & Evaluation Mode
         // =========================
+
+        evaluationType: {
+          type: String,
+          default: "judge0", // "judge0" | "framework" | "spoken"
+        },
+
+        framework: {
+          type: String,
+          default: "", // "react", "flutter", "swift", "angular", "vue", etc.
+        },
 
         language: {
           type: String,
@@ -167,6 +177,41 @@ const interviewSchema = new mongoose.Schema(
               isHidden: Boolean,
             },
           ],
+        },
+
+        frameworkEvaluation: {
+          score: {
+            type: Number,
+            default: 0,
+          },
+          correctness: {
+            type: Number,
+            default: 0,
+          },
+          frameworkKnowledge: {
+            type: Number,
+            default: 0,
+          },
+          codeQuality: {
+            type: Number,
+            default: 0,
+          },
+          bestPractices: {
+            type: Number,
+            default: 0,
+          },
+          feedback: {
+            type: String,
+            default: "",
+          },
+          strengths: {
+            type: [String],
+            default: [],
+          },
+          improvements: {
+            type: [String],
+            default: [],
+          },
         },
 
         // =========================

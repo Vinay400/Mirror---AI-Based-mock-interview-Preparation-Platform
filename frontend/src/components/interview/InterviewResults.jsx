@@ -23,7 +23,7 @@ import {
   FaChevronDown,
   FaChevronUp,
 } from "react-icons/fa";
-import { isCodingQuestion } from "../../utils/questionUtils";
+import { isCodingQuestion, isFrameworkQuestion, getFrameworkLabel } from "../../utils/questionUtils";
 
 export default function InterviewResults({
   interview,
@@ -465,8 +465,47 @@ export default function InterviewResults({
 
                   {!isCollapsed && (
                     <div className="qna-content-box">
-                      {/* Coding Evaluation Results (Coding Questions Only) */}
-                      {isCodingQ && q.codingEvaluation && typeof q.codingEvaluation.totalTests === "number" && q.codingEvaluation.totalTests > 0 && (
+                      {/* FRAMEWORK CODING QUESTION AI EVALUATION */}
+                      {isFrameworkQuestion(q) && (
+                        <div className="qna-block framework-eval-block" style={{ background: "#0f172a", border: "1px solid #1e293b", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                            <span className="block-title" style={{ color: "#c084fc", fontWeight: "bold", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                              🧠 {getFrameworkLabel(q)} Framework Coding Challenge (AI Evaluation)
+                            </span>
+                            <span style={{ padding: "0.25rem 0.75rem", borderRadius: "12px", background: "rgba(139, 92, 246, 0.2)", color: "#c084fc", fontWeight: "bold", fontSize: "0.85rem", border: "1px solid rgba(168, 85, 247, 0.3)" }}>
+                              AI Score: {normalizeScore100(q.score)}%
+                            </span>
+                          </div>
+
+                          {q.frameworkEvaluation && (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                              <div style={{ background: "#1e293b", padding: "0.6rem", borderRadius: "6px" }}>
+                                <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Framework Knowledge</div>
+                                <div style={{ fontSize: "1.1rem", fontWeight: "bold", color: "#38bdf8" }}>{q.frameworkEvaluation.frameworkKnowledge || 0}%</div>
+                              </div>
+                              <div style={{ background: "#1e293b", padding: "0.6rem", borderRadius: "6px" }}>
+                                <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Code Quality</div>
+                                <div style={{ fontSize: "1.1rem", fontWeight: "bold", color: "#34d399" }}>{q.frameworkEvaluation.codeQuality || 0}%</div>
+                              </div>
+                              <div style={{ background: "#1e293b", padding: "0.6rem", borderRadius: "6px" }}>
+                                <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Requirements</div>
+                                <div style={{ fontSize: "1.1rem", fontWeight: "bold", color: "#fbbf24" }}>{q.frameworkEvaluation.correctness || 0}%</div>
+                              </div>
+                              <div style={{ background: "#1e293b", padding: "0.6rem", borderRadius: "6px" }}>
+                                <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Best Practices</div>
+                                <div style={{ fontSize: "1.1rem", fontWeight: "bold", color: "#f472b6" }}>{q.frameworkEvaluation.bestPractices || 0}%</div>
+                              </div>
+                            </div>
+                          )}
+
+                          <div style={{ background: "rgba(30, 41, 59, 0.6)", padding: "0.5rem 0.75rem", borderRadius: "4px", color: "#94a3b8", fontSize: "0.8rem", fontStyle: "italic", border: "1px dashed #334155" }}>
+                            ⚠ Evaluated using AI review. Interactive framework execution is currently unavailable.
+                          </div>
+                        </div>
+                      )}
+
+                      {/* JUDGE0 EXECUTABLE CODING EVALUATION (Non-framework Judge0 Questions Only) */}
+                      {isCodingQ && !isFrameworkQuestion(q) && q.codingEvaluation && typeof q.codingEvaluation.totalTests === "number" && q.codingEvaluation.totalTests > 0 && (
                         <div className="qna-block coding-eval-block" style={{ background: "#0f172a", border: "1px solid #1e293b", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
                             <span className="block-title" style={{ color: "#38bdf8", fontWeight: "bold" }}>
@@ -481,7 +520,7 @@ export default function InterviewResults({
                               {q.codingEvaluation.testResults.map((tr, tri) => (
                                 <div key={tri} style={{ background: tr.passed ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)", borderLeft: tr.passed ? "3px solid #10b981" : "3px solid #ef4444", padding: "0.5rem 0.75rem", borderRadius: "4px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem" }}>
                                   <span style={{ color: "#f8fafc", fontWeight: "500" }}>
-                                    {tr.passed ? "✓" : "✗"} Test Case {tr.testCase || tri + 1} {tr.isHidden ? "(Hidden)" : "(Visible)"}
+                                    {tr.passed ? "✓" : "✗"} {tr.isHidden ? `Test Case ${tr.testCase || tri + 1}` : `Sample Test ${tr.testCase || tri + 1}`}
                                   </span>
                                   <span style={{ color: tr.passed ? "#34d399" : "#f87171", fontWeight: "bold", fontSize: "0.8rem" }}>
                                     {tr.status || (tr.passed ? "Passed" : "Failed")}
