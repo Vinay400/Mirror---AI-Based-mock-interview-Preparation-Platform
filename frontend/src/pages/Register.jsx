@@ -27,9 +27,9 @@ const characters = [
   },
 ]
 
-export default function RegisterPage() {
+export default function RegisterPage({ initialMode = 'signin' }) {
   const navigate = useNavigate()
-  const [mode, setMode] = useState('signin')
+  const [mode, setMode] = useState(initialMode)
   const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')

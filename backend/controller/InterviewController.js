@@ -1,5 +1,8 @@
 import express from "express";
+import mongoose from "mongoose";
 import Interview from "../models/Interview.js";
+import InterviewPreset from "../models/InterviewPreset.js";
+import InterviewQuestion from "../models/InterviewQuestion.js";
 import { generateQuestions, evaluateAnswers } from "../services/aiService.js";
 import { uploadAudioToCloudinary } from "../services/cloudinaryService.js";
 import { transcribeAudio } from "../services/speechService.js";
@@ -486,4 +489,200 @@ const uploadAudio = async (req, res) => {
   }
 };
 
-export { startInterview, getInterviewById, submitInterview, getUserInterviews, uploadAudio };
+const getInterviewPresets = async (req, res) => {
+  try {
+    const presets = await InterviewPreset.find({ active: true }).sort({ createdAt: 1 });
+    res.json(presets);
+  } catch (error) {
+    console.error("getInterviewPresets Error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getQuestionBank = async (req, res) => {
+  try {
+    const filter = { active: true };
+    if (req.query.role) filter.role = req.query.role;
+    if (req.query.mode) filter.mode = req.query.mode;
+    if (req.query.topic) filter.topic = req.query.topic;
+    if (req.query.difficulty) filter.difficulty = req.query.difficulty;
+    if (req.query.type) filter.type = req.query.type;
+
+    const questions = await InterviewQuestion.find(filter).sort({ createdAt: -1 });
+    res.json(questions);
+  } catch (error) {
+    console.error("getQuestionBank Error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const startCuratedInterview = async (req, res) => {
+  try {
+    const { presetId, presetSlug } = req.body;
+    const identifier = presetId || presetSlug;
+
+    if (!identifier) {
+      return res.status(400).json({ message: "presetId or presetSlug is required." });
+    }
+
+    let preset = null;
+    if (mongoose.Types.ObjectId.isValid(identifier)) {
+      preset = await InterviewPreset.findById(identifier);
+    }
+    if (!preset) {
+      preset = await InterviewPreset.findOne({ slug: identifier, active: true });
+    }
+
+    if (!preset || !preset.active) {
+      return res.status(404).json({ message: "Interview preset not found or inactive." });
+    }
+
+    const targetCount = preset.questionCount || 4;
+    const selectedQuestions = [];
+    const selectedIds = new Set();
+
+    // 1. Topic-balanced selection
+    if (Array.isArray(preset.topics) && preset.topics.length > 0) {
+      for (const topic of preset.topics) {
+        if (selectedQuestions.length >= targetCount) break;
+        const matching = await InterviewQuestion.aggregate([
+          {
+            $match: {
+              active: true,
+              topic: { $regex: new RegExp(topic, "i") },
+              _id: { $nin: Array.from(selectedIds) },
+            },
+          },
+          { $sample: { size: 1 } },
+        ]);
+        if (matching.length > 0) {
+          selectedQuestions.push(matching[0]);
+          selectedIds.add(matching[0]._id.toString());
+        }
+      }
+    }
+
+    // 2. Fallback: query matching role or mode
+    if (selectedQuestions.length < targetCount) {
+      const remainingCount = targetCount - selectedQuestions.length;
+      const fallbackMatches = await InterviewQuestion.aggregate([
+        {
+          $match: {
+            active: true,
+            $or: [{ role: preset.role }, { mode: preset.mode }],
+            _id: { $nin: Array.from(selectedIds) },
+          },
+        },
+        { $sample: { size: remainingCount } },
+      ]);
+      for (const f of fallbackMatches) {
+        selectedQuestions.push(f);
+        selectedIds.add(f._id.toString());
+      }
+    }
+
+    // 3. Final Fallback: any active questions
+    if (selectedQuestions.length < targetCount) {
+      const remainingCount = targetCount - selectedQuestions.length;
+      const genericMatches = await InterviewQuestion.aggregate([
+        {
+          $match: {
+            active: true,
+            _id: { $nin: Array.from(selectedIds) },
+          },
+        },
+        { $sample: { size: remainingCount } },
+      ]);
+      for (const g of genericMatches) {
+        selectedQuestions.push(g);
+        selectedIds.add(g._id.toString());
+      }
+    }
+
+    if (selectedQuestions.length === 0) {
+      return res.status(400).json({ message: "Not enough curated questions available for this interview." });
+    }
+
+    const processedQuestions = [];
+    for (const q of selectedQuestions) {
+      const evalType = q.evaluationType || (q.type === "Coding" ? "judge0" : "spoken");
+      const questionObj = {
+        question: q.question,
+        type: q.type || "Technical",
+        topic: q.topic || "General",
+        evaluationType: evalType,
+        framework: q.framework || "",
+        language: q.language || "cpp",
+        starterCode: q.starterCode || "",
+      };
+
+      const refSol = q.referenceSolution || "";
+      const rawInputs = Array.isArray(q.testInputs) && q.testInputs.length > 0 ? q.testInputs : ["0", "1", "2", "5"];
+
+      if (q.type === "Coding" && evalType === "judge0") {
+        if (refSol) {
+          questionObj.referenceSolution = refSol;
+        }
+        const validTestCases = [];
+        if (refSol) {
+          for (const rawInput of rawInputs) {
+            const inputStr = typeof rawInput === "string" ? rawInput.trim() : String(rawInput || "").trim();
+            if (!inputStr && inputStr !== "0") continue;
+            try {
+              const execResult = await executeCodeForInput({
+                sourceCode: refSol,
+                language: q.language || "cpp",
+                stdin: inputStr,
+              });
+              if (execResult && execResult.status?.id === 3) {
+                validTestCases.push({
+                  input: inputStr,
+                  expectedOutput: execResult.stdout || "",
+                  isHidden: true,
+                });
+              }
+            } catch (execErr) {
+              console.error("Judge0 test case execution error:", execErr.message);
+            }
+          }
+        }
+        validTestCases.forEach((tc, idx) => {
+          tc.isHidden = idx >= 2;
+        });
+        questionObj.testCases = validTestCases;
+      }
+
+      processedQuestions.push(questionObj);
+    }
+
+    const expLevel = preset.difficulty === "Easy" ? "Fresher" : preset.difficulty === "Hard" ? "5+ Years" : "1-3 Years";
+
+    const interview = await Interview.create({
+      user: req.user._id,
+      jobRole: preset.role,
+      experienceLevel: expLevel,
+      difficulty: preset.difficulty,
+      interviewType: preset.mode,
+      numQuestions: processedQuestions.length,
+      additionalSkills: Array.isArray(preset.topics) ? preset.topics.join(", ") : "",
+      questions: processedQuestions,
+    });
+
+    console.log("Created curated interview instance:", interview._id);
+    res.status(201).json(sanitizeInterviewForCandidate(interview));
+  } catch (err) {
+    console.error("startCuratedInterview Error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export {
+  startInterview,
+  getInterviewById,
+  submitInterview,
+  getUserInterviews,
+  uploadAudio,
+  getInterviewPresets,
+  getQuestionBank,
+  startCuratedInterview,
+};

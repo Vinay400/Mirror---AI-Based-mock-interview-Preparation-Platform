@@ -1,11 +1,27 @@
 import express from 'express';
 import upload from '../middleware/upload.js';
 import protect from '../middleware/authMiddleware.js';
-import {startInterview, getInterviewById, submitInterview, getUserInterviews, uploadAudio} from '../controller/InterviewController.js';
+import {
+  startInterview,
+  getInterviewById,
+  submitInterview,
+  getUserInterviews,
+  uploadAudio,
+  getInterviewPresets,
+  getQuestionBank,
+  startCuratedInterview,
+} from '../controller/InterviewController.js';
+
 const Router = express.Router();
+
+Router.get("/presets", getInterviewPresets);
+Router.get("/questions", getQuestionBank);
+Router.post("/start-curated", protect, startCuratedInterview);
+
 Router.get("/", protect, getUserInterviews);
 Router.get("/:id", protect, getInterviewById);
-Router.post("/start",protect, startInterview);
+Router.post("/start", protect, startInterview);
 Router.post("/:id/submit", protect, submitInterview);
 Router.post("/upload-audio", protect, upload.single("audio"), uploadAudio);
+
 export default Router;

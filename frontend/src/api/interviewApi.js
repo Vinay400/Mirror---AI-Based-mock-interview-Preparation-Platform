@@ -23,3 +23,15 @@ export const getUserInterviews = () => {
 export const evaluateCodeSolution = (data) => {
     return api.post("/code/evaluate", data);
 };
+
+export const getInterviewPresets = () => {
+    return api.get("/interview/presets");
+};
+
+export const startCuratedInterview = (presetId) => {
+    return api.post("/interview/start-curated", { presetId });
+};
+
+export const getQuestionBank = (params = {}) => {
+    return api.get("/interview/questions", { params });
+};
