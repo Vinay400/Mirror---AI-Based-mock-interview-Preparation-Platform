@@ -49,7 +49,6 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid Password!" });
     }
     const token = generateToken(user);
-    console.log(process.env.JWT_SECRET);
     res.json({ token });
   } catch (err) {
     res.status(500).json({ error: err.message });

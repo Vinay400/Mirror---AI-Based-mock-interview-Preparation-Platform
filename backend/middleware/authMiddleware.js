@@ -34,7 +34,6 @@ const protect = async(req, res, next) =>{
 
     //6. Continue
     next();
-    console.log(process.env.JWT_SECRET);
     } catch(err){
         console.error("Auth Middleware Error:", err);
         res.status(401).json({

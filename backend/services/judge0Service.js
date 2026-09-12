@@ -1,9 +1,10 @@
 import axios from "axios";
 
 const judge0 = axios.create({
-  baseURL: "http://localhost:2358",
+  baseURL: process.env.JUDGE0_URL || "http://localhost:2358",
   headers: {
     "Content-Type": "application/json",
+    ...(process.env.JUDGE0_KEY && { "X-RapidAPI-Key": process.env.JUDGE0_KEY }),
   },
 });
 
