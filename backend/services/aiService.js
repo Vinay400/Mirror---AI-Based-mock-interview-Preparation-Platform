@@ -106,15 +106,45 @@ Do not wrap the JSON in code fences.
 `;
 }
 
+async function callGeminiWithFallback(prompt) {
+  const models = ["gemini-2.5-flash", "gemini-3.6-flash", "gemini-2.0-flash-lite"];
+  let lastError = null;
+
+  for (const model of models) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+      });
+      if (response && response.text) {
+        return response.text;
+      }
+    } catch (err) {
+      const errMsg = err?.message || String(err);
+      console.warn(`⚠️ Gemini model "${model}" request failed:`, errMsg);
+      lastError = err;
+
+      if (
+        errMsg.includes("API key not valid") ||
+        errMsg.includes("API_KEY_INVALID") ||
+        (errMsg.includes("INVALID_ARGUMENT") && errMsg.includes("API key"))
+      ) {
+        throw new Error(
+          "Invalid Gemini API key. Please verify your GEMINI_API_KEY environment variable in your server setup (e.g. Render / Vercel / .env)."
+        );
+      }
+    }
+  }
+
+  throw lastError || new Error("Gemini AI models are currently experiencing high traffic. Please try again in a few moments.");
+}
+
 export async function generateQuestions(role, experience, difficulty, numQuestions, InterviewType, AdditionalSkills){
     const prompt = buildPrompt(role, experience, difficulty, numQuestions, InterviewType, AdditionalSkills);
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-    });
-    console.log(response.text);
+    const textOutput = await callGeminiWithFallback(prompt);
+    console.log("Questions AI Output:", textOutput);
 
-    return response.text;
+    return textOutput;
 } 
 
 function buildEvaluationPrompt(role, experience, questionsAndAnswers) {
@@ -242,12 +272,9 @@ Expected JSON Structure:
 
 export async function evaluateAnswers(role, experience, questionsAndAnswers) {
     const prompt = buildEvaluationPrompt(role, experience, questionsAndAnswers);
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-    });
-    console.log("Evaluation AI Output:", response.text);
-    return response.text;
+    const textOutput = await callGeminiWithFallback(prompt);
+    console.log("Evaluation AI Output:", textOutput);
+    return textOutput;
 }
 
 function buildFrameworkEvaluationPrompt(role, experience, questionText, framework, language, userCode) {
@@ -304,11 +331,8 @@ Return ONLY valid JSON with no markdown formatting outside, in this exact struct
 
 export async function evaluateFrameworkCode(role, experience, questionText, framework, language, userCode) {
     const prompt = buildFrameworkEvaluationPrompt(role, experience, questionText, framework, language, userCode);
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-    });
-    console.log("Framework Evaluation AI Output:", response.text);
-    return response.text;
+    const textOutput = await callGeminiWithFallback(prompt);
+    console.log("Framework Evaluation AI Output:", textOutput);
+    return textOutput;
 }
 
