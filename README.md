@@ -23,14 +23,16 @@ Mock AI is a full-stack web application that simulates realistic technical inter
 | **Backend** | Node.js, Express 5, Mongoose (MongoDB), JWT, Multer |
 | **AI** | Google Gemini (`@google/genai`) — question generation & answer evaluation |
 | **Speech** | Azure Cognitive Services Speech SDK (en-IN), FFmpeg audio conversion |
-| **Code Execution** | Self-hosted Judge0 (expected at `http://localhost:2358`) |
+| **Code Execution** | Self-hosted Judge0 (Docker containerized) |
 | **Storage** | Cloudinary (audio uploads), MongoDB (application data) |
 
 ## 📁 Project Structure
 
 ```
 mock-ai/
+├── docker-compose.yml     # Full-stack container orchestration
 ├── backend/
+│   ├── Dockerfile         # Node.js + FFmpeg backend container
 │   ├── config/            # DB, Gemini AI, Cloudinary configuration
 │   ├── controller/        # Auth, interview, and code controllers
 │   ├── middleware/        # JWT auth, file upload
@@ -39,6 +41,8 @@ mock-ai/
 │   ├── services/          # aiService, judge0Service, speechService, cloudinaryService
 │   └── server.js          # Express app entry point
 └── frontend/
+    ├── Dockerfile         # Vite build + Nginx static server
+    ├── nginx.conf         # Nginx API reverse proxy configuration
     └── src/
         ├── api/           # Axios client & API wrappers
         ├── components/    # Shared + interview components (CodingEditor, InterviewActive, ...)
@@ -48,61 +52,126 @@ mock-ai/
         └── routes/        # App routing
 ```
 
-## 🚀 Getting Started
+## 🚀 How to Run the Project
 
-### Prerequisites
+You can run the entire platform either using **Docker Compose** (recommended for quick zero-dependency setup) or **Manual Local Setup** (recommended for active development).
 
-- Node.js (v18+)
-- MongoDB (local or Atlas)
-- FFmpeg installed and available on PATH
-- A running [Judge0](https://github.com/judge0/judge0) instance (default: `http://localhost:2358`)
-- API keys for Google Gemini, Cloudinary, and Azure Speech
+---
 
-### 1. Backend
+### Method 1: Docker Compose (Recommended)
 
+Run the full stack (Frontend, Express Backend, MongoDB, Redis, PostgreSQL, Judge0, and Judge0 Worker) in isolated containers with a single command.
+
+#### Step 1: Clone the Repository
 ```bash
-cd backend
-npm install
-cp .env.example .env   # then fill in your values
-npm start
+git clone https://github.com/Vinay400/Mirror---AI-Based-mock-interview-Preparation-Platform.git
+cd Mirror---AI-Based-mock-interview-Preparation-Platform
 ```
 
-The API server starts on the port defined in `.env` (default `3000`).
+#### Step 2: Configure Environment Variables
+Copy the sample environment file for the backend and fill in your API keys:
+```bash
+cp backend/.env.example backend/.env
+```
+Edit `backend/.env` with your API credentials:
+```env
+PORT=3000
+MONGO_URI=mongodb://mongo:27017/mockai
+JWT_SECRET=your_jwt_secret_key
+Gemini_API_Key=your_google_gemini_api_key
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+AZURE_SPEECH_KEY=your_azure_speech_key
+AZURE_SPEECH_REGION=your_azure_region
+```
 
-#### Environment Variables (`backend/.env`)
+#### Step 3: Build & Start All Services
+```bash
+docker compose up --build
+```
+*(To run in background mode, add `-d` flag: `docker compose up --build -d`)*
 
-| Variable | Description |
-|---|---|
-| `PORT` | Backend server port |
-| `MONGO_URI` | MongoDB connection string |
-| `JWT_SECRET` | Secret for signing JWT tokens |
-| `Gemini_API_Key` | Google Gemini API key |
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
-| `CLOUDINARY_API_KEY` | Cloudinary API key |
-| `CLOUDINARY_API_SECRET` | Cloudinary API secret |
-| `AZURE_SPEECH_KEY` | Azure Speech service key |
-| `AZURE_SPEECH_REGION` | Azure Speech region (e.g. `centralindia`) |
+#### Step 4: Access the Application
+- **Frontend SPA**: `http://localhost:5173`
+- **Backend API**: `http://localhost:3000`
+- **Judge0 Engine**: `http://localhost:2358`
 
-### 2. Frontend
+#### Useful Docker Commands
+```bash
+# View logs from all containers
+docker compose logs -f
 
+# View status of running containers
+docker compose ps
+
+# Stop all services
+docker compose down
+
+# Stop and remove persistent database volumes (fresh reset)
+docker compose down -v
+```
+
+---
+
+### Method 2: Manual Local Setup
+
+Ideal if you are actively modifying backend or frontend source code.
+
+#### Prerequisites
+- **Node.js**: v18 or later
+- **MongoDB**: Local MongoDB instance or MongoDB Atlas URI
+- **FFmpeg**: Installed and available on your system `PATH` (required for WAV audio conversion)
+- **Judge0**: Self-hosted Judge0 instance running at `http://localhost:2358`
+
+#### Step 1: Configure Backend Environment
+```bash
+cd backend
+cp .env.example .env
+```
+Edit `backend/.env` with your database connection and API keys:
+```env
+PORT=3000
+MONGO_URI=mongodb://localhost:27017/mockai
+JWT_SECRET=your_jwt_secret
+Gemini_API_Key=your_gemini_api_key
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+AZURE_SPEECH_KEY=your_azure_speech_key
+AZURE_SPEECH_REGION=centralindia
+CORS_ORIGIN=http://localhost:5173
+JUDGE0_URL=http://localhost:2358
+```
+
+#### Step 2: Install Backend Dependencies & Start Server
+```bash
+# Inside backend/ directory
+npm install
+npm start
+```
+The backend will start listening at `http://localhost:3000`.
+
+#### Step 3: Install Frontend Dependencies & Start Dev Server
+In a new terminal window:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+The Vite dev server will start at `http://localhost:5173`.
 
-The dev server starts at `http://localhost:5173` (the backend's CORS whitelist expects this origin).
+---
 
-### 3. Judge0
+### 🧪 Verifying the Installation
 
-Run a self-hosted Judge0 instance, e.g. with Docker:
+1. Open your browser and navigate to `http://localhost:5173`.
+2. Click **Register** to create a new user account.
+3. Start a **Curated Interview** or **Custom Interview**.
+4. In coding questions, write a solution in the Monaco editor and click **Run Code** to verify Judge0 execution.
+5. In spoken questions, grant microphone/webcam permissions, record an answer, and submit to test Azure Speech transcription and Gemini evaluation.
 
-```bash
-wget https://raw.githubusercontent.com/judge0/judge0/master/docker-compose.yml
-docker-compose up -d
-```
 
-See the [Judge0 docs](https://github.com/judge0/judge0) for full setup instructions.
 
 ## 🔌 API Overview
 

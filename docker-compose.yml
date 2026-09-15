@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:13-alpine
+    container_name: mockai-postgres
+    environment:
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0password
+      POSTGRES_DB: judge0
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: mockai-redis
+    command: redis-server --requirepass judge0password
+    volumes:
+      - redis-data:/data
+    restart: always
+
+  judge0:
+    image: judge0/judge0:latest
+    container_name: mockai-judge0
+    ports:
+      - "2358:2358"
+    privileged: true
+    environment:
+      JUDGE0_KEY: ""
+      REDIS_HOST: redis
+      REDIS_PASSWORD: judge0password
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0password
+      POSTGRES_DB: judge0
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+
+  judge0-worker:
+    image: judge0/judge0:latest
+    container_name: mockai-judge0-worker
+    command: ["./scripts/workers"]
+    privileged: true
+    environment:
+      JUDGE0_KEY: ""
+      REDIS_HOST: redis
+      REDIS_PASSWORD: judge0password
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0password
+      POSTGRES_DB: judge0
+    depends_on:
+      - postgres
+      - redis
+      - judge0
+    restart: always
+
+  mongo:
+    image: mongo:latest
+    container_name: mockai-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mockai-backend
+    ports:
+      - "3000:3000"
+    env_file:
+      - backend/.env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/mockai
+      - JUDGE0_URL=http://judge0:2358
+      - PORT=3000
+    depends_on:
+      - mongo
+      - judge0
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: mockai-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  postgres-data:
+  redis-data:
+  mongo-data:
