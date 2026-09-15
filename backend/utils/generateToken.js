@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-const generateToken = (user) => {
+const generateToken = (user, remember = false) => {
     const payload = {
         userId: user._id,
         role: user.role || 'user',
@@ -10,7 +10,7 @@ const generateToken = (user) => {
     return jwt.sign(
         payload,
         process.env.JWT_SECRET,
-        { expiresIn: '1h' }
+        { expiresIn: remember ? '30d' : '1h' }
     );
 };
 

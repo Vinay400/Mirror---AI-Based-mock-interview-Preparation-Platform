@@ -33,7 +33,7 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, remember } = req.body;
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required!" });
     }
@@ -48,7 +48,7 @@ export const login = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid Password!" });
     }
-    const token = generateToken(user);
+    const token = generateToken(user, Boolean(remember));
     res.json({ token });
   } catch (err) {
     res.status(500).json({ error: err.message });

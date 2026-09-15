@@ -88,12 +88,13 @@ export default function RegisterPage({ initialMode = 'signin' }) {
           response = await login({
             email: form.email.trim(),
             password: form.password,
+            remember: rememberMe,
           })
         }
 
         const token = response?.data?.token
         if (token) {
-          setToken(token)
+          setToken(token, !isSignup && rememberMe)
         }
 
         navigate('/dashboard')
