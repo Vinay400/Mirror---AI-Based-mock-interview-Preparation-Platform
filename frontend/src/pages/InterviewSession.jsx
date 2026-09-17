@@ -168,119 +168,131 @@ export default function InterviewSession() {
     activeQuestionIdRef.current = activeQuestionId;
   }, [activeQuestionId]);
 
-  // Setup MediaRecorder & AudioStream
+  // Helper to release microphone stream & hardware tracks
+  const stopAudioTracks = (streamToStop) => {
+    const stream = streamToStop || audioStream;
+    if (stream && stream.getTracks) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+    setAudioStream(null);
+  };
+
+  // Release microphone whenever state changes away from 'active' or component unmounts
   useEffect(() => {
-    const setupMediaRecorder = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        });
-        setAudioStream(stream);
-
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-          setIsUploading(true);
-          setUploadStage("uploading");
-
-          const blob = new Blob(audioChunksRef.current, {
-            type: "audio/webm",
-          });
-
-          const durationSeconds = recTimerRef.current || 0;
-          const formData = new FormData();
-          formData.append("audio", blob, "answer.webm");
-          formData.append("interviewId", id);
-          formData.append("questionId", activeQuestionIdRef.current);
-          formData.append("duration", durationSeconds);
-
-          try {
-            const response = await uploadAudio(formData);
-
-            // Replace answer transcript in React state with Azure transcript
-            setAnswers((prev) => ({
-              ...prev,
-              [activeQuestionIdRef.current]: response.data.transcript,
-            }));
-
-            setAudioAnswers((prev) => ({
-              ...prev,
-              [activeQuestionIdRef.current]: blob,
-            }));
-
-            console.log("Azure Response:", response.data);
-            console.log("Azure Transcript:", response.data.transcript);
-
-            // Show transcribing / success message state
-            setUploadStage("transcribing");
-
-            // Auto-hide success card after around 1.5 seconds
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-
-            setUploadStage("idle");
-            setIsUploading(false);
-
-            // Execute pending navigation after upload completes
-            if (pendingActionRef.current === "next") {
-              pendingActionRef.current = null;
-              setActiveQuestionIndex((prev) => prev + 1);
-            } else if (pendingActionRef.current === "prev") {
-              pendingActionRef.current = null;
-              setActiveQuestionIndex((prev) => prev - 1);
-            } else if (pendingActionRef.current === "finish") {
-              pendingActionRef.current = null;
-              await handleFinish();
-            }
-          } catch (err) {
-            console.error("Audio upload failed:", err);
-            alert("Failed to upload and transcribe audio. Please try recording again.");
-            setUploadStage("idle");
-            setIsUploading(false);
-          } finally {
-            audioChunksRef.current = [];
-          }
-        };
-      } catch (err) {
-        console.error("Failed to access microphone:", err);
-        alert(
-          "Microphone access was denied or unavailable. Please allow microphone access and try again."
-        );
+    if (state !== "active") {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {}
       }
-    };
+      stopAudioTracks();
+      setIsRecording(false);
+    }
+  }, [state]);
 
-    setupMediaRecorder();
-
+  useEffect(() => {
     return () => {
-      if (
-        mediaRecorderRef.current &&
-        mediaRecorderRef.current.state !== "inactive"
-      ) {
-        mediaRecorderRef.current.stop();
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {}
       }
+      stopAudioTracks();
     };
-  }, [id]);
+  }, []);
 
-  const startRecording = () => {
-    if (!mediaRecorderRef.current) {
-      alert("Microphone stream is unavailable. Please check permissions.");
+  const startRecording = async () => {
+    if (isUploading) {
+      alert("Please wait while your answer is being uploaded.");
       return;
     }
     try {
+      // Release any existing stream before starting a new recording
+      stopAudioTracks();
+
+      // Request microphone stream dynamically ONLY when clicking Start Recording
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setAudioStream(stream);
+
       audioChunksRef.current = [];
-      if (mediaRecorderRef.current.state === "inactive") {
-        mediaRecorderRef.current.start();
-      }
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        setIsUploading(true);
+        setUploadStage("uploading");
+
+        const blob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
+
+        // Release hardware microphone tracks immediately after recording stops
+        if (stream && stream.getTracks) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
+        setAudioStream(null);
+
+        const durationSeconds = recTimerRef.current || 0;
+        const formData = new FormData();
+        formData.append("audio", blob, "answer.webm");
+        formData.append("interviewId", id);
+        formData.append("questionId", activeQuestionIdRef.current);
+        formData.append("duration", durationSeconds);
+
+        try {
+          const response = await uploadAudio(formData);
+
+          setAnswers((prev) => ({
+            ...prev,
+            [activeQuestionIdRef.current]: response.data.transcript,
+          }));
+
+          setAudioAnswers((prev) => ({
+            ...prev,
+            [activeQuestionIdRef.current]: blob,
+          }));
+
+          console.log("Azure Response:", response.data);
+          console.log("Azure Transcript:", response.data.transcript);
+
+          setUploadStage("transcribing");
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+
+          setUploadStage("idle");
+          setIsUploading(false);
+
+          if (pendingActionRef.current === "next") {
+            pendingActionRef.current = null;
+            setActiveQuestionIndex((prev) => prev + 1);
+          } else if (pendingActionRef.current === "prev") {
+            pendingActionRef.current = null;
+            setActiveQuestionIndex((prev) => prev - 1);
+          } else if (pendingActionRef.current === "finish") {
+            pendingActionRef.current = null;
+            await handleFinish();
+          }
+        } catch (err) {
+          console.error("Audio upload failed:", err);
+          alert("Failed to upload and transcribe audio. Please try recording again.");
+          setUploadStage("idle");
+          setIsUploading(false);
+        } finally {
+          audioChunksRef.current = [];
+        }
+      };
+
+      mediaRecorder.start();
       setRecTimer(0);
       setIsRecording(true);
     } catch (err) {
-      console.error("Error starting media recorder:", err);
+      console.error("Failed to access microphone or start recording:", err);
+      alert("Microphone access was denied or unavailable. Please allow microphone access and try again.");
       setIsRecording(false);
     }
   };

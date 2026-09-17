@@ -17,14 +17,14 @@ Mock AI is a full-stack web application that simulates realistic technical inter
 
 ## 🛠️ Tech Stack
 
-| Layer | Technologies |
-|---|---|
-| **Frontend** | React 19, Vite, Tailwind CSS 4, React Router 7, Monaco Editor, React Webcam, React Markdown |
-| **Backend** | Node.js, Express 5, Mongoose (MongoDB), JWT, Multer |
-| **AI** | Google Gemini (`@google/genai`) — question generation & answer evaluation |
-| **Speech** | Azure Cognitive Services Speech SDK (en-IN), FFmpeg audio conversion |
-| **Code Execution** | Self-hosted Judge0 (Docker containerized) |
-| **Storage** | Cloudinary (audio uploads), MongoDB (application data) |
+| Layer              | Technologies                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| **Frontend**       | React 19, Vite, Tailwind CSS 4, React Router 7, Monaco Editor, React Webcam, React Markdown |
+| **Backend**        | Node.js, Express 5, Mongoose (MongoDB), JWT, Multer                                         |
+| **AI**             | Google Gemini (`@google/genai`) — question generation & answer evaluation                   |
+| **Speech**         | Azure Cognitive Services Speech SDK (en-IN), FFmpeg audio conversion                        |
+| **Code Execution** | Self-hosted Judge0 (Docker containerized)                                                   |
+| **Storage**        | Cloudinary (audio uploads), MongoDB (application data)                                      |
 
 ## 📁 Project Structure
 
@@ -63,17 +63,22 @@ You can run the entire platform either using **Docker Compose** (recommended for
 Run the full stack (Frontend, Express Backend, MongoDB, Redis, PostgreSQL, Judge0, and Judge0 Worker) in isolated containers with a single command.
 
 #### Step 1: Clone the Repository
+
 ```bash
 git clone https://github.com/Vinay400/Mirror---AI-Based-mock-interview-Preparation-Platform.git
 cd Mirror---AI-Based-mock-interview-Preparation-Platform
 ```
 
 #### Step 2: Configure Environment Variables
+
 Copy the sample environment file for the backend and fill in your API keys:
+
 ```bash
 cp backend/.env.example backend/.env
 ```
+
 Edit `backend/.env` with your API credentials:
+
 ```env
 PORT=3000
 MONGO_URI=mongodb://mongo:27017/mockai
@@ -87,17 +92,21 @@ AZURE_SPEECH_REGION=your_azure_region
 ```
 
 #### Step 3: Build & Start All Services
+
 ```bash
 docker compose up --build
 ```
-*(To run in background mode, add `-d` flag: `docker compose up --build -d`)*
+
+_(To run in background mode, add `-d` flag: `docker compose up --build -d`)_
 
 #### Step 4: Access the Application
+
 - **Frontend SPA**: `http://localhost:5173`
 - **Backend API**: `http://localhost:3000`
 - **Judge0 Engine**: `http://localhost:2358`
 
 #### Useful Docker Commands
+
 ```bash
 # View logs from all containers
 docker compose logs -f
@@ -119,17 +128,21 @@ docker compose down -v
 Ideal if you are actively modifying backend or frontend source code.
 
 #### Prerequisites
+
 - **Node.js**: v18 or later
 - **MongoDB**: Local MongoDB instance or MongoDB Atlas URI
 - **FFmpeg**: Installed and available on your system `PATH` (required for WAV audio conversion)
 - **Judge0**: Self-hosted Judge0 instance running at `http://localhost:2358`
 
 #### Step 1: Configure Backend Environment
+
 ```bash
 cd backend
 cp .env.example .env
 ```
+
 Edit `backend/.env` with your database connection and API keys:
+
 ```env
 PORT=3000
 MONGO_URI=mongodb://localhost:27017/mockai
@@ -145,20 +158,25 @@ JUDGE0_URL=http://localhost:2358
 ```
 
 #### Step 2: Install Backend Dependencies & Start Server
+
 ```bash
 # Inside backend/ directory
 npm install
 npm start
 ```
+
 The backend will start listening at `http://localhost:3000`.
 
 #### Step 3: Install Frontend Dependencies & Start Dev Server
+
 In a new terminal window:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
 The Vite dev server will start at `http://localhost:5173`.
 
 ---
@@ -171,25 +189,23 @@ The Vite dev server will start at `http://localhost:5173`.
 4. In coding questions, write a solution in the Monaco editor and click **Run Code** to verify Judge0 execution.
 5. In spoken questions, grant microphone/webcam permissions, record an answer, and submit to test Azure Speech transcription and Gemini evaluation.
 
-
-
 ## 🔌 API Overview
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/auth/register` | Create an account |
-| `POST` | `/api/auth/login` | Log in |
-| `GET` | `/api/auth/check` | Verify session (JWT) |
-| `GET` | `/api/interview/presets` | List curated interview presets |
-| `GET` | `/api/interview/questions` | Browse the question bank |
-| `POST` | `/api/interview/start` | Generate & start a custom interview |
-| `POST` | `/api/interview/start-curated` | Start a curated interview |
-| `GET` | `/api/interview` | List the user's interviews |
-| `GET` | `/api/interview/:id` | Get a single interview |
-| `POST` | `/api/interview/:id/submit` | Submit answers for evaluation |
-| `POST` | `/api/interview/upload-audio` | Upload a recorded answer (webm) |
-| `POST` | `/api/code/run` | Execute code on Judge0 |
-| `POST` | `/api/code/evaluate` | Evaluate code against test cases |
+| Method | Endpoint                       | Description                         |
+| ------ | ------------------------------ | ----------------------------------- |
+| `POST` | `/api/auth/register`           | Create an account                   |
+| `POST` | `/api/auth/login`              | Log in                              |
+| `GET`  | `/api/auth/check`              | Verify session (JWT)                |
+| `GET`  | `/api/interview/presets`       | List curated interview presets      |
+| `GET`  | `/api/interview/questions`     | Browse the question bank            |
+| `POST` | `/api/interview/start`         | Generate & start a custom interview |
+| `POST` | `/api/interview/start-curated` | Start a curated interview           |
+| `GET`  | `/api/interview`               | List the user's interviews          |
+| `GET`  | `/api/interview/:id`           | Get a single interview              |
+| `POST` | `/api/interview/:id/submit`    | Submit answers for evaluation       |
+| `POST` | `/api/interview/upload-audio`  | Upload a recorded answer (webm)     |
+| `POST` | `/api/code/run`                | Execute code on Judge0              |
+| `POST` | `/api/code/evaluate`           | Evaluate code against test cases    |
 
 ## 🧠 How It Works
 

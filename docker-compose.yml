@@ -75,7 +75,7 @@ services:
     env_file:
       - backend/.env
     environment:
-      - MONGO_URI=mongodb://mongo:27017/mockai
+      - MONGO_URI=mongodb+srv://vinayguleria617_db_user:Vinay2004@cluster0.ncuwivj.mongodb.net/test?retryWrites=true&w=majority
       - JUDGE0_URL=http://judge0:2358
       - PORT=3000
     depends_on:
@@ -95,6 +95,16 @@ services:
     depends_on:
       - backend
     restart: always
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: mockai-cloudflared
+    restart: always
+    command: tunnel --url http://frontend:80
+    depends_on:
+      - frontend
+      - backend
+
 
 volumes:
   postgres-data:

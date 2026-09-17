@@ -538,93 +538,167 @@ const startCuratedInterview = async (req, res) => {
     }
 
     const targetCount = preset.questionCount || 4;
-    const selectedQuestions = [];
-    const selectedIds = new Set();
+    const expLevel = preset.difficulty === "Easy" ? "Fresher" : preset.difficulty === "Hard" ? "5+ Years" : "1-3 Years";
+    const topicsStr = Array.isArray(preset.topics) ? preset.topics.join(", ") : "";
 
-    // 1. Topic-balanced selection
-    if (Array.isArray(preset.topics) && preset.topics.length > 0) {
-      for (const topic of preset.topics) {
-        if (selectedQuestions.length >= targetCount) break;
-        const matching = await InterviewQuestion.aggregate([
+    let processedQuestions = [];
+
+    // 1. Primary Method: Dynamic Question Generation via Gemini AI
+    try {
+      console.log(`🤖 Generating dynamic Gemini AI questions for preset: "${preset.name}" (${preset.role})...`);
+      const questionsRaw = await generateQuestions(
+        preset.role,
+        expLevel,
+        preset.difficulty || "Medium",
+        targetCount,
+        preset.mode || "Mixed",
+        topicsStr
+      );
+
+      let cleanJsonText = (questionsRaw || "").trim();
+      if (cleanJsonText.startsWith("```json")) {
+        cleanJsonText = cleanJsonText.slice(7);
+      } else if (cleanJsonText.startsWith("```")) {
+        cleanJsonText = cleanJsonText.slice(3);
+      }
+      if (cleanJsonText.endsWith("```")) {
+        cleanJsonText = cleanJsonText.slice(0, -3);
+      }
+      cleanJsonText = cleanJsonText.trim();
+
+      const parsedQuestions = JSON.parse(cleanJsonText);
+      if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
+        for (const q of parsedQuestions) {
+          const evalType = q.evaluationType || (q.type === "coding" ? "judge0" : "spoken");
+          const questionObj = {
+            question: q.question,
+            type: q.type === "coding" ? "Coding" : q.type === "hr" ? "HR" : "Technical",
+            topic: q.topic || (preset.topics && preset.topics[0]) || "General",
+            evaluationType: evalType,
+            framework: q.framework || "",
+            language: q.language || "cpp",
+            starterCode: q.starterCode || "",
+          };
+
+          const refSol = q.referenceSolution || "";
+          const rawInputs = Array.isArray(q.testInputs) && q.testInputs.length > 0 ? q.testInputs : ["0", "1", "2", "5"];
+
+          if (q.type === "coding" && evalType === "judge0" && refSol) {
+            questionObj.referenceSolution = refSol;
+            const validTestCases = [];
+            for (const rawInput of rawInputs) {
+              const inputStr = typeof rawInput === "string" ? rawInput.trim() : String(rawInput || "").trim();
+              if (!inputStr && inputStr !== "0") continue;
+              try {
+                const execResult = await executeCodeForInput({
+                  sourceCode: refSol,
+                  language: q.language || "cpp",
+                  stdin: inputStr,
+                });
+                if (execResult && execResult.status?.id === 3) {
+                  validTestCases.push({
+                    input: inputStr,
+                    expectedOutput: execResult.stdout || "",
+                    isHidden: true,
+                  });
+                }
+              } catch (execErr) {
+                console.error("Judge0 test case execution error:", execErr.message);
+              }
+            }
+            validTestCases.forEach((tc, idx) => {
+              tc.isHidden = idx >= 2;
+            });
+            questionObj.testCases = validTestCases;
+          }
+
+          processedQuestions.push(questionObj);
+        }
+      }
+    } catch (aiErr) {
+      console.warn("⚠️ AI question generation for preset failed. Falling back to DB question bank:", aiErr.message);
+      processedQuestions = [];
+    }
+
+    // 2. Fallback: Query static Question Bank from DB if AI generation failed or returned no questions
+    if (processedQuestions.length === 0) {
+      console.log("📦 Using DB Question Bank fallback for preset:", preset.name);
+      const selectedQuestions = [];
+      const selectedIds = new Set();
+
+      if (Array.isArray(preset.topics) && preset.topics.length > 0) {
+        for (const topic of preset.topics) {
+          if (selectedQuestions.length >= targetCount) break;
+          const matching = await InterviewQuestion.aggregate([
+            {
+              $match: {
+                active: true,
+                topic: { $regex: new RegExp(topic, "i") },
+                _id: { $nin: Array.from(selectedIds) },
+              },
+            },
+            { $sample: { size: 1 } },
+          ]);
+          if (matching.length > 0) {
+            selectedQuestions.push(matching[0]);
+            selectedIds.add(matching[0]._id.toString());
+          }
+        }
+      }
+
+      if (selectedQuestions.length < targetCount) {
+        const remainingCount = targetCount - selectedQuestions.length;
+        const fallbackMatches = await InterviewQuestion.aggregate([
           {
             $match: {
               active: true,
-              topic: { $regex: new RegExp(topic, "i") },
+              $or: [{ role: preset.role }, { mode: preset.mode }],
               _id: { $nin: Array.from(selectedIds) },
             },
           },
-          { $sample: { size: 1 } },
+          { $sample: { size: remainingCount } },
         ]);
-        if (matching.length > 0) {
-          selectedQuestions.push(matching[0]);
-          selectedIds.add(matching[0]._id.toString());
+        for (const f of fallbackMatches) {
+          selectedQuestions.push(f);
+          selectedIds.add(f._id.toString());
         }
       }
-    }
 
-    // 2. Fallback: query matching role or mode
-    if (selectedQuestions.length < targetCount) {
-      const remainingCount = targetCount - selectedQuestions.length;
-      const fallbackMatches = await InterviewQuestion.aggregate([
-        {
-          $match: {
-            active: true,
-            $or: [{ role: preset.role }, { mode: preset.mode }],
-            _id: { $nin: Array.from(selectedIds) },
+      if (selectedQuestions.length < targetCount) {
+        const remainingCount = targetCount - selectedQuestions.length;
+        const genericMatches = await InterviewQuestion.aggregate([
+          {
+            $match: {
+              active: true,
+              _id: { $nin: Array.from(selectedIds) },
+            },
           },
-        },
-        { $sample: { size: remainingCount } },
-      ]);
-      for (const f of fallbackMatches) {
-        selectedQuestions.push(f);
-        selectedIds.add(f._id.toString());
+          { $sample: { size: remainingCount } },
+        ]);
+        for (const g of genericMatches) {
+          selectedQuestions.push(g);
+          selectedIds.add(g._id.toString());
+        }
       }
-    }
 
-    // 3. Final Fallback: any active questions
-    if (selectedQuestions.length < targetCount) {
-      const remainingCount = targetCount - selectedQuestions.length;
-      const genericMatches = await InterviewQuestion.aggregate([
-        {
-          $match: {
-            active: true,
-            _id: { $nin: Array.from(selectedIds) },
-          },
-        },
-        { $sample: { size: remainingCount } },
-      ]);
-      for (const g of genericMatches) {
-        selectedQuestions.push(g);
-        selectedIds.add(g._id.toString());
-      }
-    }
+      for (const q of selectedQuestions) {
+        const evalType = q.evaluationType || (q.type === "Coding" ? "judge0" : "spoken");
+        const questionObj = {
+          question: q.question,
+          type: q.type || "Technical",
+          topic: q.topic || "General",
+          evaluationType: evalType,
+          framework: q.framework || "",
+          language: q.language || "cpp",
+          starterCode: q.starterCode || "",
+        };
 
-    if (selectedQuestions.length === 0) {
-      return res.status(400).json({ message: "Not enough curated questions available for this interview." });
-    }
+        const refSol = q.referenceSolution || "";
+        const rawInputs = Array.isArray(q.testInputs) && q.testInputs.length > 0 ? q.testInputs : ["0", "1", "2", "5"];
 
-    const processedQuestions = [];
-    for (const q of selectedQuestions) {
-      const evalType = q.evaluationType || (q.type === "Coding" ? "judge0" : "spoken");
-      const questionObj = {
-        question: q.question,
-        type: q.type || "Technical",
-        topic: q.topic || "General",
-        evaluationType: evalType,
-        framework: q.framework || "",
-        language: q.language || "cpp",
-        starterCode: q.starterCode || "",
-      };
-
-      const refSol = q.referenceSolution || "";
-      const rawInputs = Array.isArray(q.testInputs) && q.testInputs.length > 0 ? q.testInputs : ["0", "1", "2", "5"];
-
-      if (q.type === "Coding" && evalType === "judge0") {
-        if (refSol) {
+        if (q.type === "Coding" && evalType === "judge0" && refSol) {
           questionObj.referenceSolution = refSol;
-        }
-        const validTestCases = [];
-        if (refSol) {
+          const validTestCases = [];
           for (const rawInput of rawInputs) {
             const inputStr = typeof rawInput === "string" ? rawInput.trim() : String(rawInput || "").trim();
             if (!inputStr && inputStr !== "0") continue;
@@ -645,17 +719,19 @@ const startCuratedInterview = async (req, res) => {
               console.error("Judge0 test case execution error:", execErr.message);
             }
           }
+          validTestCases.forEach((tc, idx) => {
+            tc.isHidden = idx >= 2;
+          });
+          questionObj.testCases = validTestCases;
         }
-        validTestCases.forEach((tc, idx) => {
-          tc.isHidden = idx >= 2;
-        });
-        questionObj.testCases = validTestCases;
-      }
 
-      processedQuestions.push(questionObj);
+        processedQuestions.push(questionObj);
+      }
     }
 
-    const expLevel = preset.difficulty === "Easy" ? "Fresher" : preset.difficulty === "Hard" ? "5+ Years" : "1-3 Years";
+    if (processedQuestions.length === 0) {
+      return res.status(400).json({ message: "Could not generate questions for this interview." });
+    }
 
     const interview = await Interview.create({
       user: req.user._id,
@@ -664,7 +740,7 @@ const startCuratedInterview = async (req, res) => {
       difficulty: preset.difficulty,
       interviewType: preset.mode,
       numQuestions: processedQuestions.length,
-      additionalSkills: Array.isArray(preset.topics) ? preset.topics.join(", ") : "",
+      additionalSkills: topicsStr,
       questions: processedQuestions,
     });
 
