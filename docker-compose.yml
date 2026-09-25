@@ -75,7 +75,9 @@ services:
     env_file:
       - backend/.env
     environment:
-      - MONGO_URI=mongodb+srv://vinayguleria617_db_user:Vinay2004@cluster0.ncuwivj.mongodb.net/test?retryWrites=true&w=majority
+      # MONGO_URI is supplied via `env_file: backend/.env` below. Do not inline
+      # credentials here — this file is committed, so anything written here ends
+      # up in git history.
       - JUDGE0_URL=http://judge0:2358
       - PORT=3000
     depends_on:

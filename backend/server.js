@@ -2,12 +2,18 @@ import "dotenv/config";
 import express from "express";
 import bodyparser from "body-parser";
 import connectDB from "./config/db.js";
+import { assertMailConfig } from "./config/validateMail.js";
 import authRoutes from "./routes/authRoutes.js";
 import InterviewRoutes from "./routes/InterviewRoutes.js";
 import codeRoutes from "./routes/codeRoutes.js";
 import cors from 'cors';
 
 const app = express();
+
+// The app sits behind a cloudflared tunnel and Render/Vercel, so req.ip is the
+// proxy's address unless one hop is trusted. Without this, every request would
+// share a single rate-limit bucket and one busy user would throttle everyone.
+app.set("trust proxy", 1);
 
 const allowedOrigins = [
   process.env.CORS_ORIGIN,
@@ -40,6 +46,7 @@ app.use(cors({
 app.use(bodyparser.urlencoded({ extended: false }));
 app.use(express.json());
 connectDB();
+assertMailConfig();
 app.use("/api/auth", authRoutes);
 app.use("/api/interview", InterviewRoutes);
 app.use("/api/code", codeRoutes);

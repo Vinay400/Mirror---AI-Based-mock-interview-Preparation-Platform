@@ -22,17 +22,31 @@ const protect = async(req, res, next) =>{
     );
 
     //4. User Fininding
-    const User = await user.findById(decoded.userId).select("-password");
+    const User = await user.findById(decoded.userId).select("-password +passwordChangedAt");
 
     if(!User){
         return res.status(401).json({
             message: "User not found."
         });
     }
-    //5. Attach user to request
+
+    //5. Reject tokens issued before the current password was set, so a password
+    // reset actually ends existing sessions (including 30-day "remember me"
+    // tokens). decoded.iat is in whole seconds, so allow a one-second grace or a
+    // token minted in the same second as the change would reject itself.
+    if(
+        User.passwordChangedAt &&
+        decoded.iat * 1000 < new Date(User.passwordChangedAt).getTime() - 1000
+    ){
+        return res.status(401).json({
+            message: "Password changed. Please sign in again."
+        });
+    }
+
+    //6. Attach user to request
     req.user = User;
 
-    //6. Continue
+    //7. Continue
     next();
     } catch(err){
         console.error("Auth Middleware Error:", err);

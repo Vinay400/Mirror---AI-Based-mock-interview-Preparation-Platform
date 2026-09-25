@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import '../styles/Authpage.css'
-import { register, login } from '../api/authApi'
+import { register, login, resendVerification } from '../api/authApi'
 import { setToken } from '../utils/auth'
+import AuthNotice from '../components/AuthNotice'
+import { getApiErrorCode } from '../utils/apiError'
 
 const characters = [
   {
@@ -33,6 +35,10 @@ export default function RegisterPage({ initialMode = 'signin' }) {
   const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [signupNotice, setSignupNotice] = useState('')
+  const [needsVerification, setNeedsVerification] = useState(false)
+  const [resendState, setResendState] = useState('idle')
+  const [resendMessage, setResendMessage] = useState('')
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -70,6 +76,29 @@ export default function RegisterPage({ initialMode = 'signin' }) {
   const handleSubmit = (event) => {
     event.preventDefault()
     setErrorMessage('')
+    setNeedsVerification(false)
+    setResendState('idle')
+    setResendMessage('')
+
+    const name = form.name.trim()
+    const email = form.email.trim()
+
+    if (isSignup && !name) {
+      setErrorMessage('Please enter your full name.')
+      return
+    }
+
+    if (!email || !form.password) {
+      setErrorMessage('Email and password are required.')
+      return
+    }
+
+    // The API never receives confirmPassword, so a typo here would silently
+    // create the account with the mistyped password.
+    if (isSignup && form.password !== form.confirmPassword) {
+      setErrorMessage('Passwords do not match.')
+      return
+    }
 
     const submit = async () => {
       setLoading(true)
@@ -79,20 +108,33 @@ export default function RegisterPage({ initialMode = 'signin' }) {
 
         if (isSignup) {
           response = await register({
-            name: form.name.trim(),
-            email: form.email.trim(),
+            name,
+            email,
             password: form.password,
             confirmPassword: form.confirmPassword,
           })
         } else {
           response = await login({
-            email: form.email.trim(),
+            email,
             password: form.password,
             remember: rememberMe,
           })
         }
 
         const token = response?.data?.token
+
+        // Register deliberately no longer returns a session token. Handing one
+        // back for a new address while withholding it for one that already
+        // exists would reveal which emails have accounts, so the account is
+        // activated by an emailed link instead.
+        if (isSignup && !token) {
+          setSignupNotice(
+            response?.data?.message ||
+              'Check your email to verify your account before signing in.',
+          )
+          return
+        }
+
         if (token) {
           setToken(token, !isSignup && rememberMe)
         }
@@ -105,12 +147,35 @@ export default function RegisterPage({ initialMode = 'signin' }) {
           (error instanceof Error ? error.message : null) ||
           'Something went wrong.'
         setErrorMessage(serverMessage)
+        // A 403 here means the credentials were right but the address was never
+        // verified, so offer the resend without making the user find it.
+        setNeedsVerification(getApiErrorCode(error) === 'EMAIL_NOT_VERIFIED')
       } finally {
         setLoading(false)
       }
     }
 
     void submit()
+  }
+
+  const handleResendVerification = async () => {
+    setResendMessage('')
+    setResendState('sending')
+
+    try {
+      const response = await resendVerification(form.email.trim())
+      setResendMessage(
+        response?.data?.message || 'If that address needs verification, we’ve sent a fresh link.',
+      )
+      setResendState('sent')
+    } catch (error) {
+      setErrorMessage(
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          'Could not send the email. Please try again.',
+      )
+      setResendState('idle')
+    }
   }
 
   return (
@@ -161,10 +226,31 @@ export default function RegisterPage({ initialMode = 'signin' }) {
             </button>
           </div>
           <div className="auth-header">
-            <h1>{headerCopy.title}</h1>
-            <p>{headerCopy.subtitle}</p>
+            <h1>{signupNotice ? 'Check your email' : headerCopy.title}</h1>
+            <p>
+              {signupNotice
+                ? 'We’ve sent a link to finish setting up your account.'
+                : headerCopy.subtitle}
+            </p>
           </div>
 
+          {signupNotice ? (
+            <AuthNotice title="Verify your address" message={signupNotice}>
+              <button
+                type="button"
+                className="auth-submit"
+                onClick={() => {
+                  setSignupNotice('')
+                  setMode('signin')
+                }}
+              >
+                Go to sign in
+              </button>
+              <p className="auth-notice__hint">
+                The link expires in 24 hours. If it hasn’t arrived, check your spam folder.
+              </p>
+            </AuthNotice>
+          ) : (
           <form className="auth-form" onSubmit={handleSubmit}>
             {isSignup ? (
               <Field
@@ -172,6 +258,8 @@ export default function RegisterPage({ initialMode = 'signin' }) {
                 type="text"
                 placeholder="Jordan Ellis"
                 name="name"
+                autoComplete="name"
+                required
                 value={form.name}
                 onChange={handleFieldChange}
               />
@@ -182,6 +270,8 @@ export default function RegisterPage({ initialMode = 'signin' }) {
               type="email"
               placeholder="hello@example.com"
               name="email"
+              autoComplete="email"
+              required
               value={form.email}
               onChange={handleFieldChange}
             />
@@ -191,6 +281,8 @@ export default function RegisterPage({ initialMode = 'signin' }) {
               type="password"
               placeholder="••••••••"
               name="password"
+              autoComplete={isSignup ? 'new-password' : 'current-password'}
+              required
               value={form.password}
               onChange={handleFieldChange}
             />
@@ -201,6 +293,8 @@ export default function RegisterPage({ initialMode = 'signin' }) {
                 type="password"
                 placeholder="••••••••"
                 name="confirmPassword"
+                autoComplete="new-password"
+                required
                 value={form.confirmPassword}
                 onChange={handleFieldChange}
               />
@@ -225,16 +319,32 @@ export default function RegisterPage({ initialMode = 'signin' }) {
                   </span>
                   <span className="auth-checkbox__text">Remember for 30 days</span>
                 </label>
-                <a href="#forgot-password" className="auth-link">Forgot password?</a>
+                <Link to="/forgot-password" className="auth-link">Forgot password?</Link>
               </div>
             )}
 
             {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
 
+            {needsVerification ? (
+              resendState === 'sent' ? (
+                <p className="auth-success">{resendMessage}</p>
+              ) : (
+                <button
+                  type="button"
+                  className="auth-inline-button"
+                  onClick={handleResendVerification}
+                  disabled={resendState === 'sending'}
+                >
+                  {resendState === 'sending' ? 'Sending…' : 'Resend verification email'}
+                </button>
+              )
+            ) : null}
+
             <button type="submit" className="auth-submit" disabled={loading}>
               {loading ? 'Please wait...' : headerCopy.submitLabel}
             </button>
           </form>
+          )}
 
           <div className="auth-footer">
             <p>{headerCopy.footerPrompt}</p>
@@ -252,7 +362,7 @@ export default function RegisterPage({ initialMode = 'signin' }) {
   )
 }
 
-function Field({ label, type, placeholder, name, value, onChange }) {
+function Field({ label, type, placeholder, name, value, onChange, autoComplete, required = false }) {
   return (
     <label className="auth-field">
       <span className="auth-field__label">{label}</span>
@@ -264,6 +374,8 @@ function Field({ label, type, placeholder, name, value, onChange }) {
           className="auth-field__input"
           value={value}
           onChange={onChange}
+          autoComplete={autoComplete}
+          required={required}
         />
       </span>
     </label>
